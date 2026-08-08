@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.db
+
+# Node
+node_modules/
+.next/
+npm-debug.log*
+
+# Env
+.env
+.env.local
+!.env.example
+!.env.local.example
+
+# OS
+.DS_Store
+Thumbs.db
