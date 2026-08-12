@@ -5,7 +5,7 @@ import { useSWRConfig } from 'swr'
 import { Check, X, Clock3, CalendarOff, Repeat, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
-import { useEmployees, useSwaps, useTimeOff, shortDate } from '@/lib/hooks'
+import { useEmployees, useSwaps, useTimeOff, dayWithDate } from '@/lib/hooks'
 import { Avatar, Badge, Card, EmptyState, Loading, SectionHeader } from './primitives'
 import { SwapDetailPanel } from './swap-detail-panel'
 
@@ -110,8 +110,8 @@ export function ApprovalsView({ storeId }: { storeId: number }) {
                     <p className="text-sm font-medium">{nameOf(t.employee_id)}</p>
                     <p className="text-xs text-muted-foreground">
                       {t.start_date === t.end_date
-                        ? shortDate(t.start_date)
-                        : `${shortDate(t.start_date)} – ${shortDate(t.end_date)}`}
+                        ? dayWithDate(t.start_date)
+                        : `${dayWithDate(t.start_date)} – ${dayWithDate(t.end_date)}`}
                       {t.reason && ` · ${t.reason}`}
                     </p>
                   </div>

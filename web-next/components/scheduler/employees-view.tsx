@@ -4,7 +4,9 @@ import { useMemo, useState } from 'react'
 import { useSWRConfig } from 'swr'
 import { Search, UserPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { api } from '@/lib/api'
+import useSWR from 'swr'
+import { api, ApiError } from '@/lib/api'
+import { useAuth } from './auth-provider'
 import { useEmployees } from '@/lib/hooks'
 import { ALL_LEVELS, levelStyle } from '@/lib/levels'
 import { cn } from '@/lib/utils'
@@ -26,6 +28,13 @@ export function EmployeesView({ storeId, query }: { storeId: number; query: stri
   const { mutate } = useSWRConfig()
   const [levelFilter, setLevelFilter] = useState<number | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [notice, setNotice] = useState('')
+  const [error, setError] = useState('')
+  const { user } = useAuth()
+  const { data: pendingLevels } = useSWR(['level-changes', 'pending'], () =>
+    api.listLevelChanges('pending'),
+  )
+  const isAdmin = user?.role === 'super_admin'
 
   const roster = useMemo(() => {
     let list = (employees ?? []).filter((e) => e.role !== 'super_admin')
@@ -37,9 +46,38 @@ export function EmployeesView({ storeId, query }: { storeId: number; query: stri
 
   async function setLevel(emp: Employee, level: number) {
     setBusyId(emp.id)
+    setNotice('')
+    setError('')
     try {
-      await api.updateEmployee(emp.id, { skill_level: level })
-      await mutate(['employees', storeId])
+      const res = await api.requestLevelChange(emp.id, level)
+      await Promise.all([
+        mutate(['employees', storeId]),
+        mutate(['level-changes', 'pending']),
+      ])
+      setNotice(
+        res.status === 'pending'
+          ? `Level increase for ${emp.first_name} submitted — waiting on super-admin approval.`
+          : `${emp.first_name} set to level ${level}.`,
+      )
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't change level")
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function decide(id: number, approve: boolean) {
+    setBusyId(-1)
+    setError('')
+    try {
+      await (approve ? api.approveLevelChange(id) : api.denyLevelChange(id))
+      await Promise.all([
+        mutate(['employees', storeId]),
+        mutate(['level-changes', 'pending']),
+      ])
+      setNotice(approve ? 'Level increase approved.' : 'Request denied.')
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not decide')
     } finally {
       setBusyId(null)
     }
@@ -65,6 +103,55 @@ export function EmployeesView({ storeId, query }: { storeId: number; query: stri
           </Button>
         }
       />
+
+      {notice && (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-300">
+          {notice}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-xl border border-destructive/35 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      {(pendingLevels?.length ?? 0) > 0 && (
+        <div className="space-y-2 rounded-2xl border border-primary/35 bg-primary/8 p-4">
+          <p className="text-sm font-semibold text-primary">
+            Level increases awaiting super-admin approval
+          </p>
+          {pendingLevels!.map((lc) => (
+            <div
+              key={lc.id}
+              className="flex flex-col gap-2 rounded-lg border border-border bg-background/60 px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <p className="text-sm">
+                <strong>{lc.employee_name}</strong>{' '}
+                <span className="text-muted-foreground">
+                  L{lc.from_level ?? '—'} → L{lc.to_level}
+                </span>
+                {lc.requested_by_name && (
+                  <span className="text-xs text-muted-foreground">
+                    {' '}· requested by {lc.requested_by_name}
+                  </span>
+                )}
+              </p>
+              {isAdmin ? (
+                <div className="flex shrink-0 gap-2">
+                  <Button size="sm" disabled={busyId !== null}
+                    onClick={() => decide(lc.id, true)}>Approve</Button>
+                  <Button variant="destructive" size="sm" disabled={busyId !== null}
+                    onClick={() => decide(lc.id, false)}>Deny</Button>
+                </div>
+              ) : (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  Pending admin review
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -128,7 +215,9 @@ export function EmployeesView({ storeId, query }: { storeId: number; query: stri
                       hrs/wk
                     </p>
                     <div className="mt-3 flex items-center gap-1">
-                      <span className="mr-1 text-[0.7rem] text-muted-foreground">Level</span>
+                      <span className="mr-1 text-[0.7rem] text-muted-foreground">
+                        Level
+                      </span>
                       {ALL_LEVELS.map((l) => (
                         <button
                           key={l}

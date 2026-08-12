@@ -2,7 +2,7 @@
 
 import useSWR from 'swr'
 import { api } from '@/lib/api'
-import { hhmm, shortDate } from '@/lib/hooks'
+import { dayWithDate, hhmm } from '@/lib/hooks'
 import type { ShiftSummary } from '@/lib/types'
 
 function PersonRow({
@@ -22,7 +22,7 @@ function PersonRow({
           Now:{' '}
           {original ? (
             <span className="line-through">
-              {shortDate(original.on_date)} {hhmm(original.start_time)}–{hhmm(original.end_time)}
+              {dayWithDate(original.on_date)} {hhmm(original.start_time)}–{hhmm(original.end_time)}
             </span>
           ) : (
             '—'
@@ -32,7 +32,7 @@ function PersonRow({
           After:{' '}
           {proposed ? (
             <span className="font-medium">
-              {shortDate(proposed.on_date)} {hhmm(proposed.start_time)}–{hhmm(proposed.end_time)}
+              {dayWithDate(proposed.on_date)} {hhmm(proposed.start_time)}–{hhmm(proposed.end_time)}
             </span>
           ) : (
             <span className="text-muted-foreground">gives up shift</span>

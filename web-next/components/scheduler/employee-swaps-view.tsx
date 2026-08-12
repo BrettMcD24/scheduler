@@ -5,7 +5,13 @@ import { useSWRConfig } from 'swr'
 import { Check, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api, ApiError } from '@/lib/api'
-import { hhmm, shortDate, useMySwaps, usePublishedSchedule } from '@/lib/hooks'
+import {
+  dayWithDate,
+  employeeCacheKeys,
+  hhmm,
+  useMySwaps,
+  usePublishedSchedule,
+} from '@/lib/hooks'
 import type { SwapStatus } from '@/lib/types'
 import { useAuth } from './auth-provider'
 import { Avatar, Badge, Card, EmptyState, Loading, SectionHeader } from './primitives'
@@ -28,7 +34,7 @@ function toneFor(status: SwapStatus) {
 export function EmployeeSwapsView() {
   const { user } = useAuth()
   const { mutate } = useSWRConfig()
-  const { shifts, names, loading } = usePublishedSchedule()
+  const { schedule, shifts, names, loading } = usePublishedSchedule()
   const { data: swaps, isLoading } = useMySwaps()
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
@@ -43,7 +49,7 @@ export function EmployeeSwapsView() {
   function shiftLabel(id: number) {
     const s = shifts.find((x) => x.id === id)
     if (!s) return `shift #${id}`
-    return `${shortDate(s.on_date)} ${hhmm(s.start_time)}–${hhmm(s.end_time)}`
+    return `${dayWithDate(s.on_date)} ${hhmm(s.start_time)}–${hhmm(s.end_time)}`
   }
 
   async function act(fn: () => Promise<unknown>, ok: string) {
@@ -52,7 +58,7 @@ export function EmployeeSwapsView() {
     setError('')
     try {
       await fn()
-      await mutate('my-swaps')
+      await Promise.all(employeeCacheKeys(schedule?.id).map((k) => mutate(k)))
       setMsg(ok)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong')

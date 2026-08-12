@@ -18,6 +18,7 @@ import {
   mondayOf,
   scheduleForWeek,
   shortDate,
+  dayWithDate,
   useEmployees,
   useSchedules,
   useShifts,
@@ -51,6 +52,7 @@ export function DashboardView({
   const { data: validation } = useValidation(schedule?.id)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
+  const [focusDate, setFocusDate] = useState<string | null>(null)
 
   useEffect(() => {
     if (newShiftNonce > 0) {
@@ -213,12 +215,62 @@ export function DashboardView({
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-display text-lg font-semibold">
-                  Weekly Roster
+                  {focusDate ? dayWithDate(focusDate) : 'Weekly Roster'}
                 </h2>
-                <LevelLegend />
+                <div className="flex items-center gap-3">
+                  <LevelLegend />
+                  <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+                    <button
+                      type="button"
+                      onClick={() => setFocusDate(null)}
+                      className={cn(
+                        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                        !focusDate
+                          ? 'bg-primary/15 text-primary'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Week
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFocusDate(focusDate ?? weekDates(weekStart)[0])
+                      }
+                      className={cn(
+                        'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                        focusDate
+                          ? 'bg-primary/15 text-primary'
+                          : 'text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      Day
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              {focusDate && (
+                <div className="flex flex-wrap gap-1.5">
+                  {weekDates(weekStart).map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setFocusDate(d)}
+                      className={cn(
+                        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors',
+                        d === focusDate
+                          ? 'border-primary/40 bg-primary/12 text-primary'
+                          : 'border-border text-muted-foreground hover:text-foreground',
+                      )}
+                    >
+                      {dayWithDate(d)}
+                    </button>
+                  ))}
+                </div>
+              )}
               {roster.length === 0 ? (
                 <EmptyState message="No employees match." />
               ) : (
@@ -226,6 +278,8 @@ export function DashboardView({
                   employees={roster}
                   shifts={shifts ?? []}
                   weekStart={weekStart}
+                  scheduleId={schedule.id}
+                  focusDate={focusDate}
                   locked={schedule.status === 'published'}
                   onCreate={async (employeeId, onDate, code, override) => {
                     await api.addShift(schedule.id, {

@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ApiError } from '@/lib/api'
-import { shortDate } from '@/lib/hooks'
+import { dayWithDate } from '@/lib/hooks'
 import type { Employee } from '@/lib/types'
 import { LevelChip } from './primitives'
 
@@ -60,7 +60,7 @@ export function AssignShiftDialog({
           <LevelChip level={employee.skill_level} />
         </div>
         <p className="mb-4 text-sm text-muted-foreground">
-          Assign a shift on {shortDate(date)}
+          Assign a shift on {dayWithDate(date)}
         </p>
 
         <input

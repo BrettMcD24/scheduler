@@ -11,6 +11,8 @@
 import type {
   AvailabilityRow,
   AvailableEmployee,
+  EmployeeDetail,
+  LevelChange,
   CallOff,
   Employee,
   Schedule,
@@ -166,6 +168,11 @@ export const api = {
     request<ValidationResult>('GET', `/schedules/${scheduleId}/validate`),
   publishSchedule: (scheduleId: number) =>
     request<Schedule>('POST', `/schedules/${scheduleId}/publish`),
+  employeeDetail: (scheduleId: number, employeeId: number) =>
+    request<EmployeeDetail>(
+      'GET',
+      `/schedules/${scheduleId}/employee-detail/${employeeId}`,
+    ),
   availableOnDay: (scheduleId: number, onDate: string) =>
     request<{ date: string; employees: AvailableEmployee[] }>(
       'GET',
@@ -234,6 +241,29 @@ export const api = {
       desired_hours_min: min,
       desired_hours_max: max,
     }),
+
+  // level changes (increases need super-admin approval)
+  listLevelChanges: (status?: string) =>
+    request<LevelChange[]>(
+      'GET',
+      `/level-changes${status ? `?status=${status}` : ''}`,
+    ),
+  requestLevelChange: (employeeId: number, toLevel: number, reason = '') =>
+    request<LevelChange>('POST', '/level-changes', {
+      employee_id: employeeId,
+      to_level: toLevel,
+      reason,
+    }),
+  approveLevelChange: (id: number, note = '') =>
+    request<LevelChange>(
+      'POST',
+      `/level-changes/${id}/approve?note=${encodeURIComponent(note)}`,
+    ),
+  denyLevelChange: (id: number, note = '') =>
+    request<LevelChange>(
+      'POST',
+      `/level-changes/${id}/deny?note=${encodeURIComponent(note)}`,
+    ),
 
   // call-offs
   listCallOffs: () => request<CallOff[]>('GET', '/call-offs'),

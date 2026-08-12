@@ -12,6 +12,7 @@ import { AuthGate, AuthProvider, useAuth } from './auth-provider'
 import { EmployeeApp } from './employee-app'
 import { mondayOf } from '@/lib/hooks'
 import { EmptyState } from './primitives'
+import { cn } from '@/lib/utils'
 
 function Shell() {
   const { user } = useAuth()
@@ -19,6 +20,7 @@ function Shell() {
   const [weekStart, setWeekStart] = useState(() => mondayOf(new Date()))
   const [query, setQuery] = useState('')
   const [newShiftNonce, setNewShiftNonce] = useState(0)
+  const [collapsed, setCollapsed] = useState(false)
 
   const isManager = user?.role === 'manager' || user?.role === 'super_admin'
   const storeId = user?.store_id ?? null
@@ -28,7 +30,12 @@ function Shell() {
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      <Sidebar active={active} onSelect={setActive} />
+      <Sidebar
+        active={active}
+        onSelect={setActive}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+      />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           active={active}
@@ -40,7 +47,12 @@ function Shell() {
             setNewShiftNonce((n) => n + 1)
           }}
         />
-        <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 lg:px-8">
+        <main
+          className={cn(
+            'mx-auto w-full flex-1 px-4 py-6 sm:px-6 lg:px-8',
+            collapsed ? 'max-w-none' : 'max-w-[1600px]',
+          )}
+        >
           {storeId === null ? (
             <EmptyState message="Your account isn't linked to a store, so there's no schedule to manage. Admin approval tooling is planned — see NOTES.md." />
           ) : (

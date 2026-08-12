@@ -5,7 +5,13 @@ import { useSWRConfig } from 'swr'
 import { ArrowLeftRight, CalendarDays, Check, Clock, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api, ApiError } from '@/lib/api'
-import { hhmm, shortDate, usePublishedSchedule, useMySwaps } from '@/lib/hooks'
+import {
+  dayWithDate,
+  employeeCacheKeys,
+  hhmm,
+  usePublishedSchedule,
+  useMySwaps,
+} from '@/lib/hooks'
 import { levelStyle } from '@/lib/levels'
 import { cn } from '@/lib/utils'
 import type { Shift } from '@/lib/types'
@@ -17,7 +23,7 @@ import { SwapPickerDialog } from './swap-picker-dialog'
 export function MyShiftsView() {
   const { user } = useAuth()
   const { mutate } = useSWRConfig()
-  const { schedules, weekStart, setWeekStart, shifts, names, loading } =
+  const { schedules, schedule, weekStart, setWeekStart, shifts, names, loading } =
     usePublishedSchedule()
   const { data: swaps } = useMySwaps()
 
@@ -64,11 +70,15 @@ export function MyShiftsView() {
   function shiftLabel(id: number) {
     const s = shifts.find((x) => x.id === id)
     if (!s) return `shift #${id}`
-    return `${shortDate(s.on_date)} ${hhmm(s.start_time)}–${hhmm(s.end_time)}`
+    return `${dayWithDate(s.on_date)} ${hhmm(s.start_time)}–${hhmm(s.end_time)}`
   }
 
   async function refresh() {
-    await Promise.all([mutate('my-swaps'), mutate('emp-schedules')])
+    // Must include the shifts key — without it an approved swap left the
+    // other person's shift list stale, so their new shift never appeared.
+    await Promise.all(
+      employeeCacheKeys(schedule?.id).map((k) => mutate(k)),
+    )
   }
 
   async function run(fn: () => Promise<unknown>, ok: string) {
@@ -103,7 +113,7 @@ export function MyShiftsView() {
             >
               {schedules.map((s) => (
                 <option key={s.id} value={s.week_start}>
-                  Week of {shortDate(s.week_start)}
+                  Week of {dayWithDate(s.week_start)}
                 </option>
               ))}
             </select>
@@ -214,7 +224,7 @@ export function MyShiftsView() {
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className="font-display text-lg font-semibold">
-                          {shortDate(s.on_date)}
+                          {dayWithDate(s.on_date)}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {hhmm(s.start_time)} – {hhmm(s.end_time)} · {s.hours}h
@@ -261,7 +271,7 @@ export function MyShiftsView() {
 
       {dropShift && (
         <DropReasonDialog
-          shiftLabel={`${shortDate(dropShift.on_date)} ${hhmm(dropShift.start_time)}–${hhmm(dropShift.end_time)}`}
+          shiftLabel={`${dayWithDate(dropShift.on_date)} ${hhmm(dropShift.start_time)}–${hhmm(dropShift.end_time)}`}
           onConfirm={async (reason) => {
             await run(
               () => api.createSwap(dropShift.id, null, null, reason),

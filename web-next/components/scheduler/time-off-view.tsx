@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useSWRConfig } from 'swr'
 import { Button } from '@/components/ui/button'
 import { api, ApiError } from '@/lib/api'
-import { shortDate, useMyTimeOff } from '@/lib/hooks'
+import { dayWithDate, useMyTimeOff } from '@/lib/hooks'
 import type { RequestStatus } from '@/lib/types'
 import { Badge, Card, EmptyState, Loading, SectionHeader } from './primitives'
 
@@ -103,8 +103,8 @@ export function TimeOffView() {
                 <div className="min-w-0">
                   <p className="text-sm font-medium">
                     {r.start_date === r.end_date
-                      ? shortDate(r.start_date)
-                      : `${shortDate(r.start_date)} – ${shortDate(r.end_date)}`}
+                      ? dayWithDate(r.start_date)
+                      : `${dayWithDate(r.start_date)} – ${dayWithDate(r.end_date)}`}
                   </p>
                   {r.reason && <p className="text-xs text-muted-foreground">{r.reason}</p>}
                   {r.manager_note && (

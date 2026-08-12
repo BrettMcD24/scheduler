@@ -118,3 +118,24 @@ re-seeding is still fine. The override flag is on ShiftIn/ShiftUpdate.
 - Dashboard: bigger stat numbers, hover lift.
 - All .card/.badge/.tag/button/input styling inherited app-wide automatically.
 - NO functionality changed.
+
+## Implemented 2026-08-09
+- Level increases now require SUPER-ADMIN approval. New LevelChangeRequest
+  model + /level-changes router (request / list / approve / deny). Managers
+  PATCHing skill_level upward get a 403 pointing them at the request flow.
+  Decreases still apply immediately. Super-admins change levels directly.
+- New GET /schedules/{id}/employee-detail/{employee_id} — day-by-day
+  availability, desired vs scheduled hours, approved time off, and mastered
+  positions, for the manager's hover card.
+- POSITION_LADDER (Cashing/Dressing/Frying/Cooking/Expediting) is DERIVED from
+  skill_level, not stored per user. The real per-user position matrix is still
+  pending — see the deferred list.
+
+SCHEMA CHANGED (level_change_requests table) — delete teds.db and re-seed.
+
+## Verified NOT a backend bug (2026-08-09)
+Two-sided swap Logan<->Aria was reported as "showed for Aria but Logan wasn't
+scheduled". Reproduced against the API: both shifts trade owners correctly.
+The fault was frontend SWR cache invalidation — the shifts key was never
+revalidated after a swap resolved, so the other person's list stayed stale.
+Fixed via employeeCacheKeys() in web-next/lib/hooks.ts.

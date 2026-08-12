@@ -43,9 +43,36 @@ export function shortDate(iso: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** "08:00:00" -> "08:00" */
+/** "16:00:00" -> "4:00 PM" */
 export function hhmm(t: string) {
-  return t.slice(0, 5)
+  const [h, m] = t.split(':').map(Number)
+  const period = h >= 12 ? 'PM' : 'AM'
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  return `${hour12}:${String(m).padStart(2, '0')} ${period}`
+}
+
+/** "16:00:00" -> "4PM" (compact, for tight grid cells) */
+export function hhmmCompact(t: string) {
+  const [h, m] = t.split(':').map(Number)
+  const period = h >= 12 ? 'p' : 'a'
+  const hour12 = h % 12 === 0 ? 12 : h % 12
+  return m === 0 ? `${hour12}${period}` : `${hour12}:${String(m).padStart(2, '0')}${period}`
+}
+
+/** "2026-08-09" -> "Sun Aug 9" */
+export function dayWithDate(iso: string) {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/** "2026-08-09" -> "Sun" */
+export function dayName(iso: string) {
+  const d = new Date(iso + 'T00:00:00')
+  return d.toLocaleDateString('en-US', { weekday: 'short' })
 }
 
 export function weekLabel(weekStart: string) {
@@ -158,6 +185,20 @@ export function usePublishedSchedule() {
     names,
     loading: sLoading || shLoading,
   }
+}
+
+/** Keys that must be revalidated after any swap/drop resolves.
+ * Missing the shifts key here is what made an approved swap look like it
+ * never landed on the other person's My Shifts. */
+export function employeeCacheKeys(scheduleId?: number | null) {
+  const keys: (string | (string | number)[])[] = [
+    'my-swaps',
+    'my-timeoff',
+    'emp-schedules',
+    'emp-people',
+  ]
+  if (scheduleId) keys.push(['shifts', scheduleId])
+  return keys
 }
 
 export function useMySwaps() {

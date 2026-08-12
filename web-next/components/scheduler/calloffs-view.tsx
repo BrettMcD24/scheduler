@@ -5,7 +5,7 @@ import { useSWRConfig } from 'swr'
 import { PhoneOff, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
-import { shortDate, toISODate, useCallOffs, useEmployees } from '@/lib/hooks'
+import { dayWithDate, toISODate, useCallOffs, useEmployees } from '@/lib/hooks'
 import { Avatar, Card, EmptyState, Loading, SectionHeader } from './primitives'
 
 export function CallOffsView({ storeId }: { storeId: number }) {
@@ -115,7 +115,7 @@ export function CallOffsView({ storeId }: { storeId: number }) {
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{c.employee_name ?? `#${c.employee_id}`}</p>
                     <p className="text-xs text-muted-foreground">
-                      {shortDate(c.on_date)}{c.shift_label && ` · ${c.shift_label}`}
+                      {dayWithDate(c.on_date)}{c.shift_label && ` · ${c.shift_label}`}
                     </p>
                   </div>
                 </div>

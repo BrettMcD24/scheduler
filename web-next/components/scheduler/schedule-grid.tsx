@@ -3,24 +3,36 @@
 import { useState } from 'react'
 import { Plus, X, ArrowLeftRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { days, type Employee, type Shift } from '@/lib/types'
+import type { Employee, Shift } from '@/lib/types'
 import { levelStyle } from '@/lib/levels'
-import { hhmm, shortDate, weekDates } from '@/lib/hooks'
+import { dayName, hhmm, hhmmCompact, shortDate, weekDates } from '@/lib/hooks'
 import { Avatar, LevelChip } from './primitives'
+import { EmployeeDetailTrigger } from './employee-detail-card'
 import { AssignShiftDialog } from './assign-shift-dialog'
+
+/** Saturday or Sunday, from the ISO date itself (works in day view too). */
+function isWeekend(iso: string) {
+  const dow = new Date(iso + 'T00:00:00').getDay()
+  return dow === 0 || dow === 6
+}
 
 export function ScheduleGrid({
   employees,
   shifts,
   weekStart,
+  scheduleId,
   locked,
+  focusDate,
   onCreate,
   onDelete,
 }: {
   employees: Employee[]
   shifts: Shift[]
   weekStart: string
+  scheduleId: number
   locked: boolean
+  /** 'week' = all 7 days; otherwise an ISO date for single-day focus */
+  focusDate?: string | null
   onCreate: (
     employeeId: number,
     onDate: string,
@@ -29,11 +41,16 @@ export function ScheduleGrid({
   ) => Promise<void>
   onDelete: (shiftId: number) => Promise<void>
 }) {
-  const dates = weekDates(weekStart)
+  const allDates = weekDates(weekStart)
+  const dates = focusDate ? [focusDate] : allDates
   const [target, setTarget] = useState<{
     employee: Employee
     date: string
   } | null>(null)
+
+  const gridCols = {
+    gridTemplateColumns: `200px repeat(${dates.length}, minmax(0, 1fr))`,
+  }
 
   function shiftsFor(employeeId: number, date: string) {
     return shifts.filter(
@@ -45,26 +62,31 @@ export function ScheduleGrid({
     <>
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <div className="overflow-x-auto">
-          <div className="min-w-[900px]">
+          <div className={focusDate ? 'min-w-[420px]' : 'min-w-[900px]'}>
             {/* Header row */}
-            <div className="grid grid-cols-[200px_repeat(7,1fr)] border-b border-border bg-secondary/40">
+            <div className="grid border-b border-border bg-secondary/40" style={gridCols}>
               <div className="px-4 py-3 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
                 Team
               </div>
-              {days.map((d, i) => (
-                <div
-                  key={d}
-                  className={cn(
-                    'border-l border-border px-3 py-3 text-center',
-                    (i === 5 || i === 6) && 'bg-secondary/30',
-                  )}
-                >
-                  <p className="text-sm font-semibold text-foreground">{d}</p>
-                  <p className="text-[0.7rem] text-muted-foreground">
-                    {shortDate(dates[i])}
-                  </p>
-                </div>
-              ))}
+              {dates.map((date) => {
+                const weekend = isWeekend(date)
+                return (
+                  <div
+                    key={date}
+                    className={cn(
+                      'border-l border-border px-3 py-3 text-center',
+                      weekend && 'bg-secondary/30',
+                    )}
+                  >
+                    <p className="text-sm font-semibold text-foreground">
+                      {dayName(date)}
+                    </p>
+                    <p className="text-[0.7rem] text-muted-foreground">
+                      {shortDate(date)}
+                    </p>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Employee rows */}
@@ -73,31 +95,37 @@ export function ScheduleGrid({
               return (
                 <div
                   key={emp.id}
-                  className="grid grid-cols-[200px_repeat(7,1fr)] border-b border-border last:border-b-0"
+                  className="grid border-b border-border last:border-b-0"
+                  style={gridCols}
                 >
-                  <div className="flex items-center gap-2.5 px-4 py-3">
-                    <span className={cn('h-8 w-1 rounded-full', ls.dot)} />
-                    <Avatar
-                      name={`${emp.first_name} ${emp.last_name}`}
-                      size="sm"
-                      level={emp.skill_level}
-                    />
-                    <div className="min-w-0 leading-tight">
-                      <p className="truncate text-sm font-medium">
-                        {emp.first_name} {emp.last_name}
-                      </p>
-                      <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                        <LevelChip level={emp.skill_level} />
-                        {emp.role === 'manager' && (
-                          <span className="text-primary">Mgr</span>
-                        )}
-                      </p>
+                  <EmployeeDetailTrigger
+                    scheduleId={scheduleId}
+                    employeeId={emp.id}
+                  >
+                    <div className="flex cursor-help items-center gap-2.5 px-4 py-3 transition-colors hover:bg-secondary/30">
+                      <span className={cn('h-8 w-1 rounded-full', ls.dot)} />
+                      <Avatar
+                        name={`${emp.first_name} ${emp.last_name}`}
+                        size="sm"
+                        level={emp.skill_level}
+                      />
+                      <div className="min-w-0 leading-tight">
+                        <p className="truncate text-sm font-medium">
+                          {emp.first_name} {emp.last_name}
+                        </p>
+                        <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                          <LevelChip level={emp.skill_level} />
+                          {emp.role === 'manager' && (
+                            <span className="text-primary">Mgr</span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  </EmployeeDetailTrigger>
 
-                  {dates.map((date, dayIndex) => {
+                  {dates.map((date) => {
                     const dayShifts = shiftsFor(emp.id, date)
-                    const weekend = dayIndex === 5 || dayIndex === 6
+                    const weekend = isWeekend(date)
                     return (
                       <div
                         key={date}
@@ -119,8 +147,9 @@ export function ScheduleGrid({
                                 )}
                               >
                                 <p className="text-xs font-semibold">
-                                  {hhmm(shift.start_time)} –{' '}
-                                  {hhmm(shift.end_time)}
+                                  {focusDate
+                                    ? `${hhmm(shift.start_time)} – ${hhmm(shift.end_time)}`
+                                    : `${hhmmCompact(shift.start_time)}–${hhmmCompact(shift.end_time)}`}
                                 </p>
                                 <p className="mt-0.5 flex items-center gap-1 text-[0.7rem] text-muted-foreground">
                                   {shift.hours}h
@@ -148,7 +177,7 @@ export function ScheduleGrid({
                             disabled={locked}
                             onClick={() => setTarget({ employee: emp, date })}
                             className="flex h-full min-h-[52px] w-full items-center justify-center rounded-lg border border-dashed border-border text-muted-foreground/50 transition-colors hover:border-primary/40 hover:text-primary disabled:cursor-not-allowed"
-                            aria-label={`Add shift for ${emp.first_name} ${emp.last_name} on ${days[dayIndex]}`}
+                            aria-label={`Add shift for ${emp.first_name} ${emp.last_name} on ${dayName(date)}`}
                           >
                             <Plus className="size-4 opacity-0 transition-opacity group-hover:opacity-100" />
                           </button>

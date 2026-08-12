@@ -96,6 +96,50 @@ export type AvailableEmployee = {
   flags: string[]
 }
 
+/** Position certification — matches the skill_* booleans on User.
+ * Cooking is always the last one mastered. */
+export type PositionCert = {
+  name: string
+  certified: boolean
+}
+
+export type EmployeeDayDetail = {
+  on_date: string
+  windows: AvailabilityWindow[]
+  on_time_off: boolean
+  scheduled_hours: number
+  has_exception: boolean
+}
+
+export type EmployeeDetail = {
+  employee_id: number
+  name: string
+  skill_level: number | null
+  is_manager: boolean
+  age: number | null
+  desired_hours_min: number | null
+  desired_hours_max: number | null
+  scheduled_hours: number
+  positions: PositionCert[]
+  days: EmployeeDayDetail[]
+}
+
+export type LevelChange = {
+  id: number
+  employee_id: number
+  employee_name: string | null
+  store_id: number
+  from_level: number | null
+  to_level: number
+  reason: string
+  status: RequestStatus
+  requested_by: number
+  requested_by_name: string | null
+  admin_note: string
+  created_at: string
+  decided_at: string | null
+}
+
 export type ValidationItem = {
   severity: 'warning' | 'violation'
   code: string
