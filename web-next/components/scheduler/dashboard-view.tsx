@@ -4,11 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSWRConfig } from 'swr'
 import {
   AlertTriangle,
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
   Clock,
-  LayoutGrid,
   TrendingUp,
   Users,
   Utensils,
@@ -20,8 +18,6 @@ import {
   mondayOf,
   scheduleForWeek,
   shortDate,
-  sortRoster,
-  toISODate,
   useEmployees,
   useSchedules,
   useShifts,
@@ -30,12 +26,9 @@ import {
   weekLabel,
 } from '@/lib/hooks'
 import { ALL_LEVELS, levelStyle } from '@/lib/levels'
-import { SKILLS, skillLabel } from '@/lib/skills'
-import { days, type PositionBreakdown as PositionBreakdownT } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Card, EmptyState, Loading, SectionHeader, StatCard } from './primitives'
 import { ScheduleGrid } from './schedule-grid'
-import { DayScheduleView } from './day-schedule-view'
 
 export function DashboardView({
   storeId,
@@ -58,15 +51,6 @@ export function DashboardView({
   const { data: validation } = useValidation(schedule?.id)
   const [busy, setBusy] = useState(false)
   const [notice, setNotice] = useState('')
-  const [viewMode, setViewMode] = useState<'week' | 'day'>('week')
-  const dates = useMemo(() => weekDates(weekStart), [weekStart])
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const today = toISODate(new Date())
-    return dates.includes(today) ? today : dates[0]
-  })
-  useEffect(() => {
-    if (!dates.includes(selectedDate)) setSelectedDate(dates[0])
-  }, [dates, selectedDate])
 
   useEffect(() => {
     if (newShiftNonce > 0) {
@@ -86,7 +70,7 @@ export function DashboardView({
           `${e.first_name} ${e.last_name}`.toLowerCase().includes(q),
         )
       : list
-    return sortRoster(filtered)
+    return filtered.sort((a, b) => (b.skill_level ?? 0) - (a.skill_level ?? 0))
   }, [employees, query])
 
   const weekLabor = validation?.staffing.reduce((s, d) => s + d.daily_labor, 0) ?? 0
@@ -140,26 +124,6 @@ export function DashboardView({
         description="Build the roster, balance coverage, and stay ahead of gaps before the week starts."
         action={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
-              <Button
-                size="sm"
-                variant={viewMode === 'week' ? 'default' : 'ghost'}
-                className="gap-1.5"
-                onClick={() => setViewMode('week')}
-              >
-                <LayoutGrid className="size-3.5" />
-                Week
-              </Button>
-              <Button
-                size="sm"
-                variant={viewMode === 'day' ? 'default' : 'ghost'}
-                className="gap-1.5"
-                onClick={() => setViewMode('day')}
-              >
-                <CalendarDays className="size-3.5" />
-                Day
-              </Button>
-            </div>
             <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
               <Button
                 size="icon-sm"
@@ -249,34 +213,15 @@ export function DashboardView({
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center justify-between">
                 <h2 className="font-display text-lg font-semibold">
-                  {viewMode === 'week' ? 'Weekly Roster' : `Day Roster — ${shortDate(selectedDate)}`}
+                  Weekly Roster
                 </h2>
                 <LevelLegend />
               </div>
-              {viewMode === 'day' && (
-                <div className="flex flex-wrap gap-1.5">
-                  {dates.map((d, i) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setSelectedDate(d)}
-                      className={cn(
-                        'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
-                        d === selectedDate
-                          ? 'border-primary/40 bg-primary/12 text-primary'
-                          : 'border-border text-muted-foreground hover:text-foreground',
-                      )}
-                    >
-                      {days[i]} {shortDate(d)}
-                    </button>
-                  ))}
-                </div>
-              )}
               {roster.length === 0 ? (
                 <EmptyState message="No employees match." />
-              ) : viewMode === 'week' ? (
+              ) : (
                 <ScheduleGrid
                   employees={roster}
                   shifts={shifts ?? []}
@@ -296,95 +241,17 @@ export function DashboardView({
                     await refresh()
                   }}
                 />
-              ) : (
-                <DayScheduleView
-                  employees={roster}
-                  shifts={shifts ?? []}
-                  scheduleId={schedule.id}
-                  date={selectedDate}
-                  locked={schedule.status === 'published'}
-                  onCreate={async (employeeId, onDate, code, override) => {
-                    await api.addShift(schedule.id, {
-                      employee_id: employeeId,
-                      on_date: onDate,
-                      code,
-                      override_availability: override,
-                    })
-                    await refresh()
-                  }}
-                  onDelete={async (shiftId) => {
-                    await api.deleteShift(shiftId)
-                    await refresh()
-                  }}
-                />
               )}
             </div>
 
             <div className="space-y-4">
-              {viewMode === 'week' ? (
-                <>
-                  <DailyCoverage staffing={validation?.staffing ?? []} />
-                  <NeedsAttention issues={issues} />
-                </>
-              ) : (
-                <>
-                  <PositionBreakdownPanel
-                    breakdown={
-                      validation?.staffing.find((d) => d.on_date === selectedDate)
-                        ?.position_breakdown
-                    }
-                  />
-                  <NeedsAttention
-                    issues={issues.filter(
-                      (i) => i.on_date === selectedDate || i.on_date === null,
-                    )}
-                  />
-                </>
-              )}
+              <DailyCoverage staffing={validation?.staffing ?? []} />
+              <NeedsAttention issues={issues} />
             </div>
           </div>
         </>
       )}
     </div>
-  )
-}
-
-function PositionBreakdownPanel({
-  breakdown,
-}: {
-  breakdown: PositionBreakdownT | undefined
-}) {
-  return (
-    <Card>
-      <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold">
-        <Utensils className="size-4 text-primary" />
-        Position Breakdown
-      </h3>
-      {!breakdown ? (
-        <p className="text-sm text-muted-foreground">No data for this day.</p>
-      ) : (
-        <div className="space-y-4">
-          {(['lunch', 'dinner'] as const).map((period) => (
-            <div key={period}>
-              <p className="mb-1.5 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {period === 'lunch' ? 'Lunch (11–4)' : 'Dinner (4–close)'} position
-                breakdown
-              </p>
-              <div className="space-y-1">
-                {SKILLS.map((s) => (
-                  <div key={s.key} className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">{skillLabel(s.key)}</span>
-                    <span className="font-semibold tabular-nums">
-                      {breakdown[period][s.key] ?? 0}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
   )
 }
 

@@ -9,6 +9,7 @@
 // to an httpOnly cookie session and read it in a server fetch wrapper.
 
 import type {
+  AvailabilityRow,
   AvailableEmployee,
   CallOff,
   Employee,
@@ -104,10 +105,6 @@ export const api = {
     store_id?: number | null
     dob?: string | null
     skill_level?: number | null
-    skill_dressing?: boolean | null
-    skill_cashing?: boolean | null
-    skill_frying?: boolean | null
-    skill_cooking?: boolean | null
     desired_hours_min?: number | null
     desired_hours_max?: number | null
   }) => request<Employee>('POST', '/employees', payload),
@@ -119,10 +116,6 @@ export const api = {
       store_id: number | null
       dob: string | null
       skill_level: number | null
-      skill_dressing: boolean | null
-      skill_cashing: boolean | null
-      skill_frying: boolean | null
-      skill_cooking: boolean | null
       desired_hours_min: number | null
       desired_hours_max: number | null
       is_active: boolean
@@ -183,6 +176,23 @@ export const api = {
   listSwaps: (status?: string) =>
     request<SwapRequest[]>('GET', `/swaps${status ? `?status=${status}` : ''}`),
   swapDetail: (id: number) => request<SwapDetail>('GET', `/swaps/${id}/detail`),
+  createSwap: (
+    shiftId: number,
+    targetEmployeeId: number | null,
+    targetShiftId: number | null = null,
+    dropReason = '',
+  ) =>
+    request<SwapRequest>('POST', '/swaps', {
+      shift_id: shiftId,
+      target_employee_id: targetEmployeeId,
+      target_shift_id: targetShiftId,
+      drop_reason: dropReason,
+    }),
+  claimSwap: (id: number) => request<SwapRequest>('POST', `/swaps/${id}/claim`),
+  acceptSwap: (id: number) => request<SwapRequest>('POST', `/swaps/${id}/accept`),
+  declineSwap: (id: number) =>
+    request<SwapRequest>('POST', `/swaps/${id}/decline`),
+  cancelSwap: (id: number) => request<SwapRequest>('POST', `/swaps/${id}/cancel`),
   approveSwap: (id: number, note = '') =>
     request<SwapRequest>('POST', `/swaps/${id}/approve`, { note }),
   denySwap: (id: number, note = '') =>
@@ -198,6 +208,32 @@ export const api = {
     request<TimeOffRequest>('POST', `/time-off/${id}/approve`, { note }),
   denyTimeOff: (id: number, note = '') =>
     request<TimeOffRequest>('POST', `/time-off/${id}/deny`, { note }),
+  createTimeOff: (startDate: string, endDate: string, reason: string) =>
+    request<TimeOffRequest>('POST', '/time-off', {
+      start_date: startDate,
+      end_date: endDate,
+      reason,
+    }),
+  cancelTimeOff: (id: number) =>
+    request<TimeOffRequest>('POST', `/time-off/${id}/cancel`),
+
+  // availability (employee self-service)
+  getWindows: (employeeId: number) =>
+    request<AvailabilityRow[]>('GET', `/availability/${employeeId}/windows`),
+  setWindows: (
+    employeeId: number,
+    rows: { day_of_week: number; start_time: string; end_time: string }[],
+  ) =>
+    request<AvailabilityRow[]>(
+      'PUT',
+      `/availability/${employeeId}/windows`,
+      rows,
+    ),
+  setDesiredHours: (min: number, max: number) =>
+    request<Employee>('PUT', '/employees/me/desired-hours', {
+      desired_hours_min: min,
+      desired_hours_max: max,
+    }),
 
   // call-offs
   listCallOffs: () => request<CallOff[]>('GET', '/call-offs'),

@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { api } from './api'
 import type { Employee, Schedule } from './types'
@@ -47,33 +48,9 @@ export function hhmm(t: string) {
   return t.slice(0, 5)
 }
 
-/** "08:00:00" -> "8:00 AM", "16:30:00" -> "4:30 PM" */
-export function formatTime(t: string) {
-  const [hStr, mStr] = t.split(':')
-  let h = parseInt(hStr, 10)
-  const m = mStr ?? '00'
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  if (h === 0) h = 12
-  else if (h > 12) h -= 12
-  return m === '00' ? `${h} ${ampm}` : `${h}:${m} ${ampm}`
-}
-
 export function weekLabel(weekStart: string) {
   const dates = weekDates(weekStart)
   return `${shortDate(dates[0])} – ${shortDate(dates[6])}`
-}
-
-/** Managers/admins always first, then by skill level desc, then last name.
- * Shared by the week grid and day view so "managers on top" is one rule. */
-export function sortRoster(employees: Employee[]) {
-  const roleRank = (r: Employee['role']) => (r === 'employee' ? 1 : 0)
-  return [...employees].sort((a, b) => {
-    const roleDiff = roleRank(a.role) - roleRank(b.role)
-    if (roleDiff !== 0) return roleDiff
-    const lvlDiff = (b.skill_level ?? 0) - (a.skill_level ?? 0)
-    if (lvlDiff !== 0) return lvlDiff
-    return a.last_name.localeCompare(b.last_name)
-  })
 }
 
 /* ---------------- data hooks ---------------- */
@@ -138,4 +115,55 @@ export function useTimeOff(status?: string) {
 
 export function useCallOffs() {
   return useSWR('calloffs', () => api.listCallOffs())
+}
+
+/* ---------------- employee-side ---------------- */
+
+/** Published schedules for the employee's store + a name lookup.
+ * Defaults to the current week if published, else the most recent. */
+export function usePublishedSchedule() {
+  const { data: schedules, isLoading: sLoading } = useSWR('emp-schedules', () =>
+    api.listSchedules(),
+  )
+  const { data: people } = useSWR('emp-people', () => api.listEmployees())
+
+  const [override, setOverride] = useState<string | null>(null)
+
+  const published = useMemo(
+    () => (schedules ?? []).filter((s) => s.status === 'published'),
+    [schedules],
+  )
+
+  const defaultWeek = useMemo(() => {
+    const thisWeek = mondayOf(new Date())
+    const match = published.find((s) => s.week_start === thisWeek)
+    return match?.week_start ?? published[0]?.week_start ?? thisWeek
+  }, [published])
+
+  const weekStart = override ?? defaultWeek
+  const schedule = published.find((s) => s.week_start === weekStart) ?? null
+  const { data: shifts, isLoading: shLoading } = useShifts(schedule?.id)
+
+  const names = useMemo(
+    () => new Map((people ?? []).map((p) => [p.id, p])),
+    [people],
+  )
+
+  return {
+    schedules: published,
+    schedule,
+    weekStart,
+    setWeekStart: setOverride,
+    shifts: shifts ?? [],
+    names,
+    loading: sLoading || shLoading,
+  }
+}
+
+export function useMySwaps() {
+  return useSWR('my-swaps', () => api.listSwaps())
+}
+
+export function useMyTimeOff() {
+  return useSWR('my-timeoff', () => api.listTimeOff())
 }

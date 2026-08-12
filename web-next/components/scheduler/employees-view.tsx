@@ -7,11 +7,9 @@ import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 import { useEmployees } from '@/lib/hooks'
 import { ALL_LEVELS, levelStyle } from '@/lib/levels'
-import type { SkillKey } from '@/lib/skills'
 import { cn } from '@/lib/utils'
 import type { Employee } from '@/lib/types'
 import { Avatar, Card, EmptyState, LevelChip, Loading, SectionHeader } from './primitives'
-import { SkillBadgesEditable } from './skill-badges'
 
 function ageOf(dob: string | null) {
   if (!dob) return null
@@ -41,16 +39,6 @@ export function EmployeesView({ storeId, query }: { storeId: number; query: stri
     setBusyId(emp.id)
     try {
       await api.updateEmployee(emp.id, { skill_level: level })
-      await mutate(['employees', storeId])
-    } finally {
-      setBusyId(null)
-    }
-  }
-
-  async function toggleSkill(emp: Employee, skill: SkillKey, next: boolean) {
-    setBusyId(emp.id)
-    try {
-      await api.updateEmployee(emp.id, { [`skill_${skill}`]: next })
       await mutate(['employees', storeId])
     } finally {
       setBusyId(null)
@@ -158,14 +146,6 @@ export function EmployeesView({ storeId, query }: { storeId: number; query: stri
                           {l}
                         </button>
                       ))}
-                    </div>
-                    <div className="mt-2 flex items-center gap-1">
-                      <span className="mr-1 text-[0.7rem] text-muted-foreground">Skills</span>
-                      <SkillBadgesEditable
-                        employee={emp}
-                        disabled={busyId === emp.id}
-                        onToggle={(skill, next) => toggleSkill(emp, skill, next)}
-                      />
                     </div>
                   </div>
                 </div>

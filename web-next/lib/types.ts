@@ -16,10 +16,6 @@ export type Employee = {
   store_id: number | null
   dob: string | null
   skill_level: number | null
-  skill_dressing: boolean
-  skill_cashing: boolean
-  skill_frying: boolean
-  skill_cooking: boolean
   desired_hours_min: number | null
   desired_hours_max: number | null
   is_active: boolean
@@ -67,6 +63,24 @@ export type Shift = {
 
 export type AvailabilityWindow = { start: string; end: string }
 
+export type AvailabilityRow = {
+  id: number
+  employee_id: number
+  day_of_week: number
+  start_time: string
+  end_time: string
+}
+
+export const DAY_NAMES = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+]
+
 export type AvailableEmployee = {
   employee_id: number
   name: string
@@ -90,11 +104,6 @@ export type ValidationItem = {
   on_date: string | null
 }
 
-export type PositionBreakdown = {
-  lunch: Record<string, number>
-  dinner: Record<string, number>
-}
-
 export type DayStaffing = {
   on_date: string
   openers: number
@@ -106,7 +115,6 @@ export type DayStaffing = {
   lunch: number
   dinner: number
   daily_labor: number
-  position_breakdown: PositionBreakdown
 }
 
 export type ValidationResult = {

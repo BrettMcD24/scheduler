@@ -70,10 +70,31 @@ Server Components later, switch the backend to an httpOnly cookie session.
 - Swap history: decided swaps with expandable shift detail
 - Live badge counts in sidebar + notification bell
 
-## What's missing (still only in the Vite app)
+## Employee console
 
-- **Employee self-service** — my shifts, store schedule, swaps & drops,
-  time-off requests, availability editing. The v0 design is manager-only.
-- **Availability panel** on the builder (green/red schedulable sorting).
-- Employee creation, availability editing by managers.
+Sign in as an employee and the app routes to a separate console
+(`employee-app.tsx`) with its own sidebar. Feature parity with the Vite app:
+
+- **My Shifts** — your published shifts, hours totals, and per-shift
+  **Drop** / **Swap** actions. Incoming swap requests appear at the top in a
+  blue highlight: "[name] wants to swap shifts — you'd take X, and they take
+  your Y", with Accept / Decline. Shifts with a live request show
+  "Request pending" instead of the action buttons.
+- **Store Schedule** — day tabs showing who else is working, colour-coded by
+  skill level, with your own row ringed.
+- **Swaps and Drops** — incoming requests, the open pool (claimable), and your
+  own requests with status and a **Cancel** button while still undecided.
+- **Time Off** — submit a date range + reason, see status, cancel while pending.
+- **Availability** — per-day windows (add/remove/edit) plus desired weekly
+  hours min/max. Saving writes both.
+
+Drop opens a reason dialog (manager-visible only). Swap is two-step: pick a
+coworker working that day, then add a reason and confirm.
+
+## What's still missing
+
+- **Availability panel** on the manager builder (green/red schedulable sorting)
+  — still only in the Vite app.
+- Employee creation; managers editing someone else's availability.
 - Export CSV, Settings, Support (v0 chrome with no backend behind it).
+- Managers' availability defaulting to any day/any time (logged in NOTES.md).

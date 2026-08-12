@@ -5,7 +5,7 @@ import { Plus, X, ArrowLeftRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { days, type Employee, type Shift } from '@/lib/types'
 import { levelStyle } from '@/lib/levels'
-import { formatTime, shortDate, weekDates } from '@/lib/hooks'
+import { hhmm, shortDate, weekDates } from '@/lib/hooks'
 import { Avatar, LevelChip } from './primitives'
 import { AssignShiftDialog } from './assign-shift-dialog'
 
@@ -119,8 +119,8 @@ export function ScheduleGrid({
                                 )}
                               >
                                 <p className="text-xs font-semibold">
-                                  {formatTime(shift.start_time)} –{' '}
-                                  {formatTime(shift.end_time)}
+                                  {hhmm(shift.start_time)} –{' '}
+                                  {hhmm(shift.end_time)}
                                 </p>
                                 <p className="mt-0.5 flex items-center gap-1 text-[0.7rem] text-muted-foreground">
                                   {shift.hours}h
