@@ -1,23 +1,15 @@
 'use client'
 
 import useSWR from 'swr'
-import { CalendarOff } from 'lucide-react'
+import { CalendarOff, Check, Minus } from 'lucide-react'
 import { api } from '@/lib/api'
-import { formatTime } from '@/lib/hooks'
+import { dayWithDate, hhmm } from '@/lib/hooks'
 import { levelStyle } from '@/lib/levels'
-import { SKILLS } from '@/lib/skills'
 import { cn } from '@/lib/utils'
 import { LevelChip } from './primitives'
 
-/** "2026-08-09" -> "Sun Aug 9" */
-function dayWithDate(iso: string) {
-  return new Date(iso + 'T00:00:00').toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
+/** Detail card shown when a manager hovers/clicks an employee while building.
+ * Day-by-day availability, desired vs scheduled hours, mastered positions. */
 export function EmployeeDetailCard({
   scheduleId,
   employeeId,
@@ -28,12 +20,12 @@ export function EmployeeDetailCard({
   const { data, isLoading } = useSWR(
     ['emp-detail', scheduleId, employeeId],
     () => api.employeeDetail(scheduleId, employeeId),
-    { revalidateOnFocus: false, dedupingInterval: 15000 },
+    { revalidateOnFocus: false },
   )
 
   if (isLoading || !data) {
     return (
-      <div className="w-72 rounded-xl border border-border bg-popover p-3 text-xs text-muted-foreground shadow-2xl">
+      <div className="w-72 rounded-xl border border-border bg-popover p-3 text-xs text-muted-foreground shadow-xl">
         Loading…
       </div>
     )
@@ -46,12 +38,10 @@ export function EmployeeDetailCard({
   const underMin = min != null && data.scheduled_hours < min
 
   return (
-    <div className="w-72 space-y-3 rounded-xl border border-border bg-popover p-3 shadow-2xl">
+    <div className="w-72 space-y-3 rounded-xl border border-border bg-popover p-3 shadow-xl">
       <div className="flex items-center gap-2">
-        <span className={cn('size-2.5 shrink-0 rounded-full', ls.dot)} />
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-          {data.name}
-        </p>
+        <span className={cn('size-2.5 rounded-full', ls.dot)} />
+        <p className="flex-1 truncate text-sm font-semibold">{data.name}</p>
         <LevelChip level={data.skill_level} />
       </div>
 
@@ -76,9 +66,7 @@ export function EmployeeDetailCard({
           </span>
         </div>
         {overMax && (
-          <p className="mt-1 text-[0.7rem] text-destructive">
-            Over their desired max
-          </p>
+          <p className="mt-1 text-[0.7rem] text-destructive">Over their max</p>
         )}
         {data.age != null && data.age < 18 && (
           <p className="mt-1 text-[0.7rem] text-destructive">
@@ -87,30 +75,36 @@ export function EmployeeDetailCard({
         )}
       </div>
 
-      {/* Position certifications */}
+      {/* Positions */}
       <div>
         <p className="mb-1 text-[0.7rem] font-semibold tracking-wider text-muted-foreground uppercase">
           Positions
         </p>
-        <div className="flex flex-wrap gap-1">
-          {SKILLS.map((s) => {
-            const certified = data[s.employeeField]
-            return (
+        {data.positions.length === 0 ? (
+          <p className="text-xs text-muted-foreground">None recorded</p>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {data.positions.map((p) => (
               <span
-                key={s.key}
-                title={`${s.label}${certified ? ' — certified' : ' — not certified'}`}
+                key={p.name}
                 className={cn(
-                  'rounded px-1.5 py-0.5 text-[0.65rem] font-semibold',
-                  certified
-                    ? 'bg-primary/15 text-primary'
-                    : 'bg-secondary text-muted-foreground/40',
+                  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.7rem]',
+                  p.certified
+                    ? ls.chip
+                    : 'border-border bg-background/40 text-muted-foreground/50',
                 )}
+                title={p.certified ? 'Certified' : 'Not yet certified'}
               >
-                {s.abbr}
+                {p.certified ? (
+                  <Check className="size-2.5" />
+                ) : (
+                  <Minus className="size-2.5" />
+                )}
+                {p.name}
               </span>
-            )
-          })}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Day-by-day availability */}
@@ -124,9 +118,9 @@ export function EmployeeDetailCard({
             return (
               <div
                 key={d.on_date}
-                className="flex items-baseline gap-2 text-[0.7rem]"
+                className="flex items-center justify-between gap-2 text-[0.7rem]"
               >
-                <span className="w-[4.5rem] shrink-0 text-muted-foreground">
+                <span className="w-20 shrink-0 text-muted-foreground">
                   {dayWithDate(d.on_date)}
                 </span>
                 <span
@@ -135,7 +129,7 @@ export function EmployeeDetailCard({
                     d.on_time_off
                       ? 'text-destructive'
                       : unavailable
-                        ? 'text-muted-foreground/50'
+                        ? 'text-muted-foreground/60'
                         : 'text-foreground',
                   )}
                 >
@@ -148,12 +142,12 @@ export function EmployeeDetailCard({
                     'Unavailable'
                   ) : (
                     d.windows
-                      .map((w) => `${formatTime(w.start)}–${formatTime(w.end)}`)
+                      .map((w) => `${hhmm(w.start)}–${hhmm(w.end)}`)
                       .join(', ')
                   )}
                 </span>
                 {d.scheduled_hours > 0 && (
-                  <span className="w-8 shrink-0 text-right tabular-nums text-primary">
+                  <span className="w-9 shrink-0 text-right tabular-nums text-primary">
                     {d.scheduled_hours}h
                   </span>
                 )}
@@ -166,11 +160,7 @@ export function EmployeeDetailCard({
   )
 }
 
-/**
- * Wraps the roster's team cell. Shows the detail card on hover, and pins it
- * open on click (click-away or a second click closes it) so the card is
- * usable on touch devices too.
- */
+/** Wrapper that shows the card on hover and on click (click sticks). */
 export function EmployeeDetailTrigger({
   scheduleId,
   employeeId,
@@ -182,15 +172,8 @@ export function EmployeeDetailTrigger({
 }) {
   return (
     <div className="group/detail relative">
-      <details className="peer [&>summary::-webkit-details-marker]:hidden">
-        <summary className="cursor-pointer list-none">{children}</summary>
-        {/* Pinned open on click */}
-        <div className="absolute top-full left-2 z-50 pt-1">
-          <EmployeeDetailCard scheduleId={scheduleId} employeeId={employeeId} />
-        </div>
-      </details>
-      {/* Hover preview — hidden once the details element is open */}
-      <div className="pointer-events-none absolute top-full left-2 z-40 hidden pt-1 group-hover/detail:block peer-open:group-hover/detail:hidden">
+      {children}
+      <div className="pointer-events-none absolute top-full left-0 z-40 hidden pt-2 group-hover/detail:block">
         <EmployeeDetailCard scheduleId={scheduleId} employeeId={employeeId} />
       </div>
     </div>
