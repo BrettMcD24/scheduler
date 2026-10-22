@@ -139,3 +139,32 @@ scheduled". Reproduced against the API: both shifts trade owners correctly.
 The fault was frontend SWR cache invalidation — the shifts key was never
 revalidated after a swap resolved, so the other person's list stayed stale.
 Fixed via employeeCacheKeys() in web-next/lib/hooks.ts.
+
+## 2026-10-22 — merge gaps closed + level approval wired
+
+Frontend (web-next) now typechecks clean and builds. Fixed:
+- `lib/types.ts` — `Employee` was missing the four `skill_*` certification
+  booleans, which broke `lib/skills.ts`, `skill-badges.tsx` and
+  `day-schedule-view.tsx` (the Pick<> constraint had nothing to pick).
+- `lib/hooks.ts` — restored `formatTime()`, imported by `day-schedule-view`.
+- `employee-detail-card.tsx` — now reads the real `skill_*` booleans via the
+  `SKILLS` constant instead of an orphaned `PositionCert[]` shape, so the hover
+  card's badges match the day view exactly. Removed the dead `PositionCert` type.
+
+Backend:
+- `employee-detail` endpoint added to `schedules.py` — day-by-day availability,
+  desired vs scheduled hours, approved time off, and position certifications.
+  Read-only; no schema dependency.
+- `LevelChangeRequest` model + `LevelChangeIn/Out` schemas added, and
+  `level_changes` router registered in `main.py`. The router file was already in
+  the repo but its model/schemas/registration were missing, so it was broken
+  dead code that raised ImportError if touched.
+- `employees.py` PATCH now blocks skill_level INCREASES for non-super-admins
+  (403 pointing at /level-changes). Decreases and position certifications are
+  not gated.
+
+SCHEMA CHANGED (level_change_requests table) — delete teds.db and re-seed.
+
+Verified end to end: direct PATCH increase blocked; request held pending; level
+unchanged while pending; manager cannot approve; super-admin approves and level
+applies; decrease immediate; employee-detail returns 7 days + real certs.

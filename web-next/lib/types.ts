@@ -16,6 +16,11 @@ export type Employee = {
   store_id: number | null
   dob: string | null
   skill_level: number | null
+  // position certifications; cooking is always the last one mastered
+  skill_dressing: boolean
+  skill_cashing: boolean
+  skill_frying: boolean
+  skill_cooking: boolean
   desired_hours_min: number | null
   desired_hours_max: number | null
   is_active: boolean
@@ -96,13 +101,6 @@ export type AvailableEmployee = {
   flags: string[]
 }
 
-/** Position certification — matches the skill_* booleans on User.
- * Cooking is always the last one mastered. */
-export type PositionCert = {
-  name: string
-  certified: boolean
-}
-
 export type EmployeeDayDetail = {
   on_date: string
   windows: AvailabilityWindow[]
@@ -120,7 +118,11 @@ export type EmployeeDetail = {
   desired_hours_min: number | null
   desired_hours_max: number | null
   scheduled_hours: number
-  positions: PositionCert[]
+  // real certifications, mirroring the skill_* columns on User
+  skill_dressing: boolean
+  skill_cashing: boolean
+  skill_frying: boolean
+  skill_cooking: boolean
   days: EmployeeDayDetail[]
 }
 

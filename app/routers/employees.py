@@ -119,6 +119,19 @@ def update_employee(
     data = body.model_dump(exclude_unset=True)
     if "role" in data:
         data["role"] = Role(data["role"])
+
+    # Level INCREASES need super-admin sign-off — managers must go through
+    # POST /level-changes. Position certifications are not gated.
+    if "skill_level" in data and actor.role != Role.super_admin:
+        new_level = data["skill_level"]
+        current = emp.skill_level
+        if new_level is not None and (current is None or new_level > current):
+            raise HTTPException(
+                403,
+                "Level increases require super-admin approval — "
+                "submit a request via /level-changes",
+            )
+
     for key, value in data.items():
         setattr(emp, key, value)
     db.commit()

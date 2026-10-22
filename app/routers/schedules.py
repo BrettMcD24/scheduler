@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import date, time
+from datetime import date, time, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
@@ -440,3 +440,114 @@ def available_on_day(
     # schedulable first, then by skill level descending within each group
     out.sort(key=lambda e: (not e["can_schedule"], -(e["skill_level"] or 0)))
     return {"date": on_date.isoformat(), "employees": out}
+
+
+@router.get("/{schedule_id}/employee-detail/{employee_id}")
+def employee_detail(
+    schedule_id: int,
+    employee_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_manager),
+):
+    """Everything a manager wants while building the schedule: day-by-day
+    availability, desired vs already-scheduled hours, approved time off, and
+    position certifications. Powers the hover card on the roster grid."""
+    schedule = db.get(Schedule, schedule_id)
+    if not schedule:
+        raise HTTPException(404, "Schedule not found")
+    check_store_access(actor, schedule.store_id)
+    emp = db.get(User, employee_id)
+    if not emp or emp.store_id != schedule.store_id:
+        raise HTTPException(404, "Employee not found at this store")
+
+    dates = [schedule.week_start + timedelta(days=i) for i in range(7)]
+
+    # recurring weekly availability
+    by_day: dict[int, list[dict]] = {i: [] for i in range(7)}
+    for w in (
+        db.query(Availability).filter(Availability.employee_id == employee_id).all()
+    ):
+        by_day[w.day_of_week].append(
+            {"start": w.start_time.isoformat(), "end": w.end_time.isoformat()}
+        )
+
+    # date-specific exceptions override the recurring pattern
+    exc_by_date = {
+        e.on_date: e
+        for e in db.query(AvailabilityException)
+        .filter(
+            AvailabilityException.employee_id == employee_id,
+            AvailabilityException.on_date.in_(dates),
+        )
+        .all()
+    }
+
+    # approved time off overlapping the week
+    off_dates = set()
+    for t in (
+        db.query(TimeOffRequest)
+        .filter(
+            TimeOffRequest.employee_id == employee_id,
+            TimeOffRequest.status == RequestStatus.approved,
+            TimeOffRequest.start_date <= dates[-1],
+            TimeOffRequest.end_date >= dates[0],
+        )
+        .all()
+    ):
+        for d in dates:
+            if t.start_date <= d <= t.end_date:
+                off_dates.add(d)
+
+    hours_by_date = {d.isoformat(): 0.0 for d in dates}
+    for sh in (
+        db.query(Shift)
+        .filter(Shift.schedule_id == schedule_id, Shift.employee_id == employee_id)
+        .all()
+    ):
+        key = sh.on_date.isoformat()
+        if key in hours_by_date:
+            hours_by_date[key] += sh.hours()
+
+    days_out = []
+    for d in dates:
+        exc = exc_by_date.get(d)
+        if exc is not None:
+            if not exc.available:
+                wins = []
+            elif exc.start_time and exc.end_time:
+                wins = [
+                    {
+                        "start": exc.start_time.isoformat(),
+                        "end": exc.end_time.isoformat(),
+                    }
+                ]
+            else:
+                wins = by_day[d.weekday()]
+        else:
+            wins = by_day[d.weekday()]
+        days_out.append(
+            {
+                "on_date": d.isoformat(),
+                "windows": wins,
+                "on_time_off": d in off_dates,
+                "scheduled_hours": round(hours_by_date[d.isoformat()], 2),
+                "has_exception": exc is not None,
+            }
+        )
+
+    return {
+        "employee_id": emp.id,
+        "name": f"{emp.first_name} {emp.last_name}",
+        "skill_level": emp.skill_level,
+        "is_manager": emp.role != Role.employee,
+        "age": emp.age_on(schedule.week_start),
+        "desired_hours_min": emp.desired_hours_min,
+        "desired_hours_max": emp.desired_hours_max,
+        "scheduled_hours": round(sum(hours_by_date.values()), 2),
+        # real certifications straight off the User columns
+        "skill_dressing": emp.skill_dressing,
+        "skill_cashing": emp.skill_cashing,
+        "skill_frying": emp.skill_frying,
+        "skill_cooking": emp.skill_cooking,
+        "days": days_out,
+    }

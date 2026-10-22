@@ -75,6 +75,17 @@ export function dayName(iso: string) {
   return d.toLocaleDateString('en-US', { weekday: 'short' })
 }
 
+/** "16:00:00" -> "4 PM" / "4:30 PM". Used by the day view and hover card. */
+export function formatTime(t: string) {
+  const [hStr, mStr] = t.split(':')
+  let h = parseInt(hStr, 10)
+  const m = mStr ?? '00'
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  if (h === 0) h = 12
+  else if (h > 12) h -= 12
+  return m === '00' ? `${h} ${ampm}` : `${h}:${m} ${ampm}`
+}
+
 export function weekLabel(weekStart: string) {
   const dates = weekDates(weekStart)
   return `${shortDate(dates[0])} – ${shortDate(dates[6])}`

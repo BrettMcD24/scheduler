@@ -269,3 +269,31 @@ class CallOff(Base):
 
     employee: Mapped[User] = relationship(foreign_keys=[employee_id])
     shift: Mapped[Shift | None] = relationship(foreign_keys=[shift_id])
+
+
+class LevelChangeRequest(Base):
+    """A manager proposing a skill-level change. Increases require super-admin
+    approval; decreases apply immediately."""
+
+    __tablename__ = "level_change_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    employee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+    from_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    to_level: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(500), default="")
+    status: Mapped[RequestStatus] = mapped_column(
+        Enum(RequestStatus), default=RequestStatus.pending
+    )
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    decided_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    admin_note: Mapped[str] = mapped_column(String(255), default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    employee: Mapped[User] = relationship(foreign_keys=[employee_id])

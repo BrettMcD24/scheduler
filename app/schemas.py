@@ -293,3 +293,27 @@ class CallOffOut(ORMModel):
     shift_label: str
     reason: str
     created_at: datetime
+
+
+# --- level change requests ---
+
+class LevelChangeIn(BaseModel):
+    employee_id: int
+    to_level: int
+    reason: str = ""
+
+
+class LevelChangeOut(ORMModel):
+    id: int
+    employee_id: int
+    employee_name: str | None = None
+    store_id: int
+    from_level: int | None
+    to_level: int
+    reason: str
+    status: str
+    requested_by: int
+    requested_by_name: str | None = None
+    admin_note: str
+    created_at: datetime
+    decided_at: datetime | None

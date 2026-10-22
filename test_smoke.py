@@ -117,6 +117,11 @@ monday = "2026-06-15"
 
 
 def add(emp, day, code=None, start=None, end=None, expect=200, **kw):
+    # Most of this test seeds shifts to exercise the ADVISORY validation engine
+    # (minor rules, double-booking, staffing minimums). Those are deliberately
+    # outside availability, so default to overriding the hard availability gate.
+    # Pass override_availability=False to test the gate itself.
+    kw.setdefault("override_availability", True)
     payload = {"employee_id": emps[emp] if emp else None, "on_date": day, **kw}
     if code:
         payload["code"] = code
@@ -143,6 +148,10 @@ add("Ben", monday, start="15:30", end="21:30")
 
 # Maya double-booked on purpose
 add("Maya", monday, start="18:00", end="22:00")
+
+# The availability gate itself: without an override, a shift outside the
+# employee's listed availability is refused (409); with one, it goes through.
+add("Ben", monday, start="06:00", end="07:00", expect=409, override_availability=False)
 
 # 7. available-on-day panel
 r = client.get(f"/schedules/{schedule_id}/available", headers=manager,

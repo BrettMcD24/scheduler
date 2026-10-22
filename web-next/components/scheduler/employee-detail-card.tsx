@@ -5,6 +5,7 @@ import { CalendarOff, Check, Minus } from 'lucide-react'
 import { api } from '@/lib/api'
 import { dayWithDate, hhmm } from '@/lib/hooks'
 import { levelStyle } from '@/lib/levels'
+import { SKILLS } from '@/lib/skills'
 import { cn } from '@/lib/utils'
 import { LevelChip } from './primitives'
 
@@ -80,31 +81,30 @@ export function EmployeeDetailCard({
         <p className="mb-1 text-[0.7rem] font-semibold tracking-wider text-muted-foreground uppercase">
           Positions
         </p>
-        {data.positions.length === 0 ? (
-          <p className="text-xs text-muted-foreground">None recorded</p>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {data.positions.map((p) => (
+        <div className="flex flex-wrap gap-1">
+          {SKILLS.map((s) => {
+            const certified = data[s.employeeField]
+            return (
               <span
-                key={p.name}
+                key={s.key}
                 className={cn(
                   'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[0.7rem]',
-                  p.certified
+                  certified
                     ? ls.chip
-                    : 'border-border bg-background/40 text-muted-foreground/50',
+                    : 'border-border bg-background/40 text-muted-foreground/40',
                 )}
-                title={p.certified ? 'Certified' : 'Not yet certified'}
+                title={`${s.label} — ${certified ? 'certified' : 'not certified'}`}
               >
-                {p.certified ? (
+                {certified ? (
                   <Check className="size-2.5" />
                 ) : (
                   <Minus className="size-2.5" />
                 )}
-                {p.name}
+                {s.label}
               </span>
-            ))}
-          </div>
-        )}
+            )
+          })}
+        </div>
       </div>
 
       {/* Day-by-day availability */}
