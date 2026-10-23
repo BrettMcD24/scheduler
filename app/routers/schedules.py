@@ -34,6 +34,25 @@ def _assignment_block_reason(
     """Return a reason string if this employee can't be directly scheduled for
     this shift (on approved time off, or shift falls outside availability),
     else None. Used to block MANAGER direct assignment — not swaps/pickups."""
+    # Managers and admins are always schedulable: they run the store and are
+    # expected to cover any day and any hours, so their availability windows
+    # are advisory only. Approved time off is still respected below.
+    person = db.get(User, employee_id)
+    if person is not None and person.role != Role.employee:
+        on_time_off_mgr = (
+            db.query(TimeOffRequest)
+            .filter(
+                TimeOffRequest.employee_id == employee_id,
+                TimeOffRequest.status == RequestStatus.approved,
+                TimeOffRequest.start_date <= on_date,
+                TimeOffRequest.end_date >= on_date,
+            )
+            .first()
+        )
+        if on_time_off_mgr:
+            return "Employee has approved time off on this date"
+        return None
+
     # approved time off that covers the date
     on_time_off = (
         db.query(TimeOffRequest)
@@ -417,8 +436,11 @@ def available_on_day(
         if hours == 0:
             flags.append("no_shifts_yet")
 
-        # can be scheduled today = has availability windows AND not on approved time off
-        can_schedule = len(windows) > 0 and not on_time_off
+        # Crew: schedulable if they have windows today and aren't on time off.
+        # Managers/admins: always schedulable (their windows are advisory),
+        # blocked only by approved time off — matches _assignment_block_reason.
+        is_mgr = emp.role != Role.employee
+        can_schedule = not on_time_off and (is_mgr or len(windows) > 0)
 
         out.append(
             {

@@ -168,3 +168,13 @@ SCHEMA CHANGED (level_change_requests table) — delete teds.db and re-seed.
 Verified end to end: direct PATCH increase blocked; request held pending; level
 unchanged while pending; manager cannot approve; super-admin approves and level
 applies; decrease immediate; employee-detail returns 7 days + real certs.
+
+## 2026-10-22 (later) — managers always schedulable
+Closes the item logged 2026-06-17. Managers/admins now bypass the availability
+window check entirely in `_assignment_block_reason` — they run the store and
+are expected to cover any day and any hours, so their windows are advisory.
+Approved TIME OFF still blocks them. The availability panel's `can_schedule`
+uses the same rule so the UI and the API agree.
+
+Before: a manager seeded with Mon 06:00-14:00 was refused a 4-C close (409).
+After: any shift, any day, no override needed. Crew gating is unchanged.
