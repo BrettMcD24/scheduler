@@ -8,6 +8,8 @@ import { EmployeesView } from './employees-view'
 import { ApprovalsView } from './approvals-view'
 import { CallOffsView } from './calloffs-view'
 import { SwapsView } from './swaps-view'
+import { SchoolBreaksView } from './school-breaks-view'
+import { ExportView } from './export-view'
 import { AuthGate, AuthProvider, useAuth } from './auth-provider'
 import { EmployeeApp } from './employee-app'
 import { mondayOf } from '@/lib/hooks'
@@ -72,6 +74,14 @@ function Shell() {
               {active === 'approvals' && <ApprovalsView storeId={storeId} />}
               {active === 'calloffs' && <CallOffsView storeId={storeId} />}
               {active === 'swaps' && <SwapsView storeId={storeId} />}
+              {active === 'school-breaks' && <SchoolBreaksView />}
+              {active === 'export' && (
+                <ExportView
+                  storeId={storeId}
+                  weekStart={weekStart}
+                  onWeekChange={setWeekStart}
+                />
+              )}
             </>
           )}
         </main>

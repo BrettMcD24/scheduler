@@ -11,6 +11,8 @@ const labels: Record<SectionKey, string> = {
   approvals: 'Approvals',
   calloffs: 'Call-offs',
   swaps: 'Shift Swap History',
+  'school-breaks': 'Non-School Dates',
+  export: 'Print & Export',
 }
 
 export function Topbar({

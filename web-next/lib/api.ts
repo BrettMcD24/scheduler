@@ -9,13 +9,15 @@
 // to an httpOnly cookie session and read it in a server fetch wrapper.
 
 import type {
+  AuditEntry,
   AvailabilityRow,
   AvailableEmployee,
-  EmployeeDetail,
-  LevelChange,
   CallOff,
   Employee,
+  EmployeeDetail,
+  LevelChange,
   Schedule,
+  SchoolBreak,
   Shift,
   Store,
   SwapDetail,
@@ -276,4 +278,16 @@ export const api = {
   }) => request<CallOff>('POST', '/call-offs', payload),
   deleteCallOff: (id: number) =>
     request<{ deleted: number }>('DELETE', `/call-offs/${id}`),
+
+  // non-school date ranges + their immutable audit trail
+  listSchoolBreaks: () => request<SchoolBreak[]>('GET', '/school-breaks'),
+  createSchoolBreak: (payload: {
+    name: string
+    start_date: string
+    end_date: string
+  }) => request<SchoolBreak>('POST', '/school-breaks', payload),
+  deleteSchoolBreak: (id: number) =>
+    request<{ deleted: number }>('DELETE', `/school-breaks/${id}`),
+  listSchoolBreakAudit: () =>
+    request<AuditEntry[]>('GET', '/school-breaks/audit'),
 }

@@ -8,13 +8,14 @@ from datetime import date, time, timedelta
 
 from sqlalchemy.orm import Session
 
-from .labor_laws import check_minor_shift
+from .labor_laws import check_minor_shift, week_has_school
 from .models import (
     Availability,
     AvailabilityException,
     RequestStatus,
     Role,
     Schedule,
+    SchoolBreak,
     Shift,
     Store,
     TimeOffRequest,
@@ -61,8 +62,12 @@ def _parse_clock(token: str, *, force_pm: bool = False) -> time:
     """Parse tokens like '8', '830', '11', '1130', '1205' into a time.
 
     Heuristic from the paper sheets: 6-11 = am, 12 = pm (noon), 1-5 = pm.
+    'NOON' is written out on the paper sheet (e.g. '8-NOON') and listed in the
+    PRD, so it is accepted as a token.
     """
-    token = token.strip()
+    token = token.strip().upper()
+    if token in ("NOON", "12NOON"):
+        return time(12, 0)
     if len(token) <= 2:
         hour, minute = int(token), 0
     elif len(token) == 3:
@@ -144,10 +149,28 @@ def _windows_for(
     return recurring.get((employee_id, on_date.weekday()))
 
 
+# Findings that describe the whole week rather than one shift. Emitting these
+# per-shift produced seven identical "35h this week" rows for a 7-day schedule.
+WEEK_SCOPED_MINOR_CODES = {"MINOR_WEEKLY_HOURS", "MINOR_DAYS_PER_WEEK"}
+
+
 def validate_schedule(db: Session, schedule: Schedule) -> dict:
     store = schedule.store
     shifts = [s for s in schedule.shifts]
     dates = _week_dates(schedule.week_start)
+
+    # Non-school ranges for this store. These select the NON-SCHOOL tier of
+    # minor limits for the dates they cover — they never disable the checks.
+    school_breaks = [
+        (b.start_date, b.end_date)
+        for b in db.query(SchoolBreak)
+        .filter(SchoolBreak.store_id == store.id)
+        .all()
+    ]
+    # NY's higher weekly caps apply only when school is closed for the WHOLE
+    # calendar week, so this is computed once per week, not per shift.
+    school_week = week_has_school(dates, school_breaks)
+    seen_week_issues: set[tuple[int, str]] = set()
 
     employees = (
         db.query(User)
@@ -370,7 +393,7 @@ def validate_schedule(db: Session, schedule: Schedule) -> dict:
             # birthdays mid-week)
             age = emp.age_on(s.on_date)
             if age is not None and age < 18:
-                for issue in check_minor_shift(
+                for issue in check_minor_shift(  # noqa: E501
                     age,
                     store.state,
                     s.on_date,
@@ -378,7 +401,17 @@ def validate_schedule(db: Session, schedule: Schedule) -> dict:
                     s.end_time,
                     daily_hours[(emp.id, s.on_date)],
                     hours,
+                    school_breaks,
+                    school_week,
+                    len({x.on_date for x in shifts_by_emp.get(emp.id, [])}),
                 ):
+                    # Week-scoped findings are about the week, not this shift,
+                    # so emit them once per employee instead of once per shift.
+                    if issue.code in WEEK_SCOPED_MINOR_CODES:
+                        key = (emp.id, issue.code)
+                        if key in seen_week_issues:
+                            continue
+                        seen_week_issues.add(key)
                     items.append(
                         ValidationItem(
                             SEVERITY_VIOLATION,

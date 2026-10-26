@@ -254,3 +254,28 @@ export function initials(name: string) {
     .join('')
     .toUpperCase()
 }
+
+/** A date range when school is out for the store's area. Selects the
+ * NON-SCHOOL tier of minor labor limits — never disables the checks. */
+export type SchoolBreak = {
+  id: number
+  store_id: number
+  name: string
+  start_date: string
+  end_date: string
+  created_by: number
+  created_by_name: string | null
+  created_at: string
+}
+
+/** Immutable audit entry. Retained for one year; there is no delete. */
+export type AuditEntry = {
+  id: number
+  entity_type: string
+  entity_id: number
+  action: string
+  actor_id: number | null
+  actor_name: string | null
+  details: string
+  created_at: string
+}

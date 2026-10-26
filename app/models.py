@@ -297,3 +297,26 @@ class LevelChangeRequest(Base):
     )
 
     employee: Mapped[User] = relationship(foreign_keys=[employee_id])
+
+
+class SchoolBreak(Base):
+    """A date range when school is NOT in session for a store's area
+    (summer, winter break, Thanksgiving week, snow days).
+
+    Minor labor rules are not suspended on these dates — the NON-SCHOOL tier
+    of limits applies instead, which is what the statutes actually provide:
+    longer daily/weekly caps and later permitted hours. See app/labor_laws.py.
+
+    Rows are mutable (a manager can fix a typo'd range), but every create and
+    delete is written to the immutable audit log.
+    """
+
+    __tablename__ = "school_breaks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int] = mapped_column(ForeignKey("stores.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    start_date: Mapped[date] = mapped_column(Date, index=True)
+    end_date: Mapped[date] = mapped_column(Date, index=True)
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

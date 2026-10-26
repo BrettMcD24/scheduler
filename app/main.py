@@ -9,6 +9,7 @@ from .routers import (
     employees,
     level_changes,
     schedules,
+    school_breaks,
     stores,
     swaps,
     time_off,
@@ -48,6 +49,7 @@ app.include_router(swaps.router)
 app.include_router(time_off.router)
 app.include_router(call_offs.router)
 app.include_router(level_changes.router)
+app.include_router(school_breaks.router)
 
 
 @app.get("/")

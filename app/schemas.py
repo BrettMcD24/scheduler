@@ -317,3 +317,33 @@ class LevelChangeOut(ORMModel):
     admin_note: str
     created_at: datetime
     decided_at: datetime | None
+
+
+# --- school breaks (non-school date ranges) ---
+
+class SchoolBreakIn(BaseModel):
+    name: str
+    start_date: date
+    end_date: date
+
+
+class SchoolBreakOut(ORMModel):
+    id: int
+    store_id: int
+    name: str
+    start_date: date
+    end_date: date
+    created_by: int
+    created_by_name: str | None = None
+    created_at: datetime
+
+
+class AuditEntryOut(BaseModel):
+    id: int
+    entity_type: str
+    entity_id: int
+    action: str
+    actor_id: int | None
+    actor_name: str | None = None
+    details: str
+    created_at: datetime

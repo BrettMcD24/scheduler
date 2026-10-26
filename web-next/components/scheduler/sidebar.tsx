@@ -6,6 +6,8 @@ import {
   CheckSquare,
   PhoneOff,
   Repeat,
+  CalendarX2,
+  Printer,
   CalendarClock,
   Settings,
   LifeBuoy,
@@ -24,6 +26,8 @@ export type SectionKey =
   | 'approvals'
   | 'calloffs'
   | 'swaps'
+  | 'school-breaks'
+  | 'export'
 
 type NavItem = {
   key: SectionKey
@@ -67,6 +71,8 @@ export function Sidebar({
       badge: callOffs?.length || undefined,
     },
     { key: 'swaps', label: 'Shift Swap History', icon: Repeat },
+    { key: 'school-breaks', label: 'Non-School Dates', icon: CalendarX2 },
+    { key: 'export', label: 'Print & Export', icon: Printer },
   ]
 
   return (

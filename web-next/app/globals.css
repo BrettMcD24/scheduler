@@ -126,3 +126,204 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ---------------------------------------------------------------------
+   Printable schedule sheet.
+
+   The app is dark, but a sheet pinned up in the store must be black on
+   white — dark backgrounds waste toner and read badly on paper. So the
+   sheet carries its own light palette on screen (acting as a preview)
+   and in print, independent of the app theme.
+   --------------------------------------------------------------------- */
+
+.print-sheet {
+  background: #fff;
+  color: #111;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  /* preview at roughly the proportions of the portrait page it prints as */
+  max-width: 850px;
+  margin-inline: auto;
+}
+
+.print-sheet .sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #111;
+}
+.print-sheet h1 {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.print-sheet .wk {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: #444;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.print-sheet .totals {
+  border-collapse: collapse;
+  font-size: 10px;
+}
+.print-sheet .totals th,
+.print-sheet .totals td {
+  border: 1px solid #111;
+  padding: 1px 8px;
+  text-align: right;
+}
+.print-sheet .totals th {
+  background: #eee;
+  text-align: left;
+  letter-spacing: 0.06em;
+}
+.print-sheet .totals .grand th,
+.print-sheet .totals .grand td {
+  font-weight: 700;
+  background: #ddd;
+}
+
+.print-sheet .sheet-grid {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 10px;
+  table-layout: fixed;
+}
+.print-sheet .sheet-grid th,
+.print-sheet .sheet-grid td {
+  border: 0.5px solid #999;
+  padding: 2px 3px;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.print-sheet .sheet-grid thead th {
+  background: #e8e8e8;
+  border-color: #111;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  padding: 3px 2px;
+}
+.print-sheet .sheet-grid thead .dow {
+  display: block;
+  font-weight: 700;
+}
+.print-sheet .sheet-grid thead .dnum {
+  display: block;
+  font-weight: 400;
+  color: #555;
+}
+
+.print-sheet .name {
+  text-align: left;
+  font-weight: 500;
+  text-overflow: ellipsis;
+}
+.print-sheet .num { font-variant-numeric: tabular-nums; }
+.print-sheet .total { font-weight: 700; background: #f3f3f3; }
+.print-sheet .total.flagged {
+  /* the paper sheet's "LABOR LAW OVER" column, as a mark on the total */
+  background: #ffe9e9;
+  box-shadow: inset 2px 0 0 #b00;
+}
+.print-sheet .minor { font-weight: 700; color: #b00; }
+
+.print-sheet .cell { font-variant-numeric: tabular-nums; }
+.print-sheet .cell.off { color: #aaa; }
+.print-sheet .cell.wknd { background: #f6f6f6; }
+.print-sheet .cell.swapped {
+  background: #fff6d6;
+  font-weight: 600;
+}
+.print-sheet thead th.wknd { background: #dcdcdc; }
+
+.print-sheet .band td {
+  background: #222;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-align: left;
+  padding: 2px 5px;
+  border-color: #111;
+}
+
+.print-sheet tfoot th {
+  text-align: left;
+  background: #e8e8e8;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  border-color: #111;
+}
+.print-sheet tfoot td { border-color: #111; }
+.print-sheet .count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  background: #f3f3f3;
+}
+.print-sheet .count.short {
+  background: #ffe0e0;
+  color: #900;
+  font-weight: 700;
+}
+.print-sheet tfoot .labor th,
+.print-sheet tfoot .labor td { background: #ddd; font-weight: 700; }
+
+.print-sheet .sheet-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 8.5px;
+  color: #555;
+}
+
+/* Print: landscape, edge-to-edge, app chrome hidden, nothing else on the page */
+@media print {
+  @page { size: letter portrait; margin: 0.3in 0.28in; }
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  body * { visibility: hidden; }
+  .print-sheet, .print-sheet * { visibility: visible; }
+  .print-sheet {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    border-radius: 0;
+  }
+  .no-print { display: none !important; }
+  /* force the greys to actually render rather than dropping out */
+  .print-sheet * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .print-sheet .sheet-grid tr { page-break-inside: avoid; }
+
+  /* Tighten for paper. The store's own sheet fits ~35 rows on one landscape
+     page; at on-screen sizing we spilled onto a second page at 23 rows. */
+  .print-sheet .sheet-grid { font-size: 8px; margin-top: 5px; }
+  .print-sheet .sheet-grid th,
+  .print-sheet .sheet-grid td { padding: 1.6px 1px; }
+  .print-sheet .sheet-grid thead th { font-size: 7.4px; padding: 2px 1px; }
+  .print-sheet .band td { font-size: 7.6px; padding: 1px 4px; }
+  .print-sheet tfoot th { font-size: 7.6px; }
+  .print-sheet h1 { font-size: 14px; }
+  .print-sheet .wk { font-size: 9px; }
+  .print-sheet .totals { font-size: 8.5px; }
+  .print-sheet .totals th, .print-sheet .totals td { padding: 0.5px 6px; }
+  .print-sheet .sheet-head { padding-bottom: 5px; }
+  .print-sheet .sheet-foot { font-size: 7.5px; margin-top: 4px; }
+
+  /* repeat the day headings if a very large roster does paginate */
+  .print-sheet thead { display: table-header-group; }
+}

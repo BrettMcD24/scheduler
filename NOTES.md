@@ -178,3 +178,127 @@ uses the same rule so the UI and the API agree.
 
 Before: a manager seeded with Mon 06:00-14:00 was refused a 4-C close (409).
 After: any shift, any day, no override needed. Crew gating is unchanged.
+
+## 2026-10-22 — non-school date ranges + audit trail
+
+Replaces the Sept-June school-day heuristic (which wrongly flagged Thanksgiving
+and winter break) with a per-store calendar of non-school ranges.
+
+IMPORTANT — what this does and does not do. The request was for ranges where
+"labor laws aren't in effect." That is not what was built, deliberately: minor
+labor limits are statutory and cannot be waived by a scheduling app, and a
+blanket off-switch would let the tool schedule a 15-year-old past legal limits
+with an audit trail showing the store knew. What the statutes actually provide
+is a DIFFERENT TIER of limits on non-school days (longer caps, later hours), so
+a range flips a date to that tier. The checks always run.
+
+- New `SchoolBreak` model (store_id, name, start/end, created_by, created_at).
+  Multiple ranges per store.
+- `labor_laws.is_school_day()` / `is_summer_vacation()` now take the store's
+  ranges; validate_schedule loads them once and passes them through. With no
+  ranges configured, the old heuristic still applies, so existing stores are
+  unaffected.
+- `/school-breaks` router: create, list, delete (manager+; employees get 403).
+- `/school-breaks/audit`: every create and delete recorded via the existing
+  AuditLog. No update or delete endpoint exists for audit entries, and the
+  endpoint filters out anything older than AUDIT_RETENTION_DAYS (365).
+- Frontend: "Non-School Dates" sidebar section — add/remove ranges, plus the
+  read-only audit trail with a "kept 1 year" badge and copy explaining the
+  tier distinction.
+
+Verified: 6h shift for a 16yo on Thanksgiving week flags as a school-day
+violation (4h cap) BEFORE a range is added, passes AFTER (8h cap), and a 10h
+shift on a break day STILL violates. Multiple ranges, reversed-date rejection,
+audit retention after deletion, and employee 403 all tested.
+
+NOTE ON RETENTION: one year is what was asked for. NY requires payroll/hour
+records be kept SIX years, so if these ranges are ever used to justify a
+minor's hours in an audit, 365 days is likely too short. Change
+AUDIT_RETENTION_DAYS in app/routers/school_breaks.py.
+
+## 2026-10-22 — labor laws verified against primary sources + corrections
+
+Audit retention bumped 365 -> 365*6 (NY requires minor payroll/hour records
+be kept six years).
+
+Rules checked against NY DOL "When a Minor Can Work" + form LS171, the AZ ICA
+youth-employment hours page, and the federal FLSA child-labor rules. Where
+state and federal differ, the STRICTER now applies (what a covered employer
+must follow). Five real bugs found and fixed:
+
+1. NY 16-17 daily cap. The 4h limit applies on days BEFORE a school day
+   (Mon-Thu), not on every school day. Fridays in a school week get 8h.
+   Previously every Friday 4h+ shift was flagged as a false violation.
+2. NY 16-17 evening limit. 10pm while school is in session, MIDNIGHT when it
+   is not. Previously hardcoded 10pm year-round, so summer evening shifts were
+   falsely flagged.
+3. AZ under-16 hours were too PERMISSIVE — the only under-flagging bug. AZ
+   state allows 6am-9:30pm/11pm, but FLSA caps under-16s at 7am-7pm (9pm
+   Jun 1 - Labor Day). Federal governs for an FLSA-covered employer, which a
+   restaurant in interstate commerce is. The app would have green-lit an
+   illegal 9pm shift for a 15-year-old in Arizona.
+4. Weekly caps were keyed off a single day's school status, so the cap could
+   differ between two shifts in the same week. They now key off whether the
+   WHOLE calendar week is school-free, which is what NY requires for the
+   40h/48h tiers.
+5. Missing 6-days-per-week cap (both states, all ages) — added as
+   MINOR_DAYS_PER_WEEK.
+
+Also: week-scoped findings (weekly hours, days per week) are now emitted once
+per employee instead of once per shift. A 7-day schedule previously produced
+seven identical "35h this week" rows.
+
+Labor Day is computed (first Monday in September), not hardcoded.
+
+STILL NOT MODELLED (conservative — these over-flag, never under-flag):
+- NY 16-17 may work to midnight before a school day with written parental AND
+  school consent; we enforce the unconsented 10pm limit.
+- Work/study (23h) and Cooperative Education (6h) programme allowances.
+- LS171 footnote 4 resort-hotel/restaurant carve-out.
+- "No work during school hours" — we have no bell schedule.
+- Employment certificates (working papers) are not tracked at all.
+
+Sources are listed at the top of app/labor_laws.py. These are statutes that
+change; re-verify before relying on this for a real store.
+
+## 2026-10-23 — printable schedule + CSV export
+
+Not in the PRD, but the store posts a paper sheet on the wall, so the app has
+to produce one. New "Print & Export" section, modelled on the real Sheridan
+sheet (photo 6/9/2024).
+
+Layout, matching the paper:
+- Header: store, week range, and the MGRS / CREW / TOTAL hours box.
+- Columns: LVL, NAME (surname first), AGE as a decimal (17.80 — the way the
+  paper tracks proximity to 18), then the 7 days, then weekly HRS.
+- Managers banded at the top, crew below, each sorted by level then surname.
+- Cells carry the store's own shift codes (8-4, 1130-8, 2-C, 730-430, 8-NOON),
+  X for a day off, R/O for approved time off.
+- Footer counters: OPENERS and CLOSERS as actual/minimum (red when short),
+  LUNCH (11-4), DINNER (4-close), and daily LABOR HOURS.
+- Minors get an M next to their age; anyone with a live labor-law violation
+  gets a red rule on their weekly total — the paper sheet's "LABOR LAW OVER"
+  column, as a mark instead of a column.
+- Draft weeks print marked DRAFT; published weeks carry the publish timestamp.
+
+Mechanics:
+- Pure CSS print (@media print), PORTRAIT Letter, no new dependencies. Portrait
+  because the store posts the sheet in a vertical frame; it also matches the
+  photo. The day columns get tight (~0.78in each), which is expected — the
+  paper sheet is tighter still. The app
+  is dark but the sheet carries its own light palette, on screen and on paper —
+  a dark printout wastes toner and reads badly.
+- Verified by rendering to PDF: 23-row roster fits ONE landscape page. Print
+  media uses tighter sizing than the on-screen preview, which otherwise spilled
+  to a second page. thead repeats if a very large roster does paginate.
+- CSV export of the same grid, UTF-8 with BOM so Excel doesn't mangle names.
+
+Also fixed: parse_shift_code() rejected 8-NOON with a ValueError, even though
+NOON appears all over the paper sheet and is listed in PRD s.12. _parse_clock
+now accepts it. All codes round-trip: code -> times -> code.
+
+GOTCHA worth remembering: the print table was originally class="grid", which
+collides with Tailwind's .grid utility. The <table> was being laid out as a CSS
+grid (display:grid on the table, display:block on tbody), so every column width
+was ignored and thead/tbody disagreed. Renamed to .sheet-grid. Don't give an
+element a bare Tailwind utility name.
