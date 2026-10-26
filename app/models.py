@@ -210,6 +210,17 @@ class SwapRequest(Base):
     manager_note: Mapped[str] = mapped_column(String(255), default="")
     # reason the requester gave for dropping/swapping — manager-visible only
     drop_reason: Mapped[str] = mapped_column(String(500), default="")
+
+    # --- manager-posted open shifts ---
+    # A manager can put an unfilled shift on the board with a note and the
+    # criteria someone must meet to claim it.
+    posted_by_manager: Mapped[bool] = mapped_column(Boolean, default=False)
+    # shown to everyone on the board, e.g. "Need a closer who can dress"
+    board_message: Mapped[str] = mapped_column(String(500), default="")
+    # comma-separated SkillKey values from app/skills.py, e.g. "dressing,frying"
+    required_skills: Mapped[str] = mapped_column(String(120), default="")
+    min_skill_level: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     shift: Mapped[Shift] = relationship(foreign_keys=[shift_id])

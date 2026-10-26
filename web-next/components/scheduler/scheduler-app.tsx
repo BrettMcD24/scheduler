@@ -73,7 +73,9 @@ function Shell() {
               )}
               {active === 'approvals' && <ApprovalsView storeId={storeId} />}
               {active === 'calloffs' && <CallOffsView storeId={storeId} />}
-              {active === 'swaps' && <SwapsView storeId={storeId} />}
+              {active === 'swaps' && (
+                <SwapsView storeId={storeId} weekStart={weekStart} />
+              )}
               {active === 'school-breaks' && <SchoolBreaksView />}
               {active === 'export' && (
                 <ExportView

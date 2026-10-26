@@ -207,7 +207,13 @@ check(shift_after["employee_id"] == emps["Jake"], "shift reassigned after approv
 r = client.post("/swaps", headers=tokens["Lisa"], json={"shift_id": s2["id"]})
 check(r.status_code == 200 and r.json()["status"] == "open", "open drop created")
 drop_id = r.json()["id"]
+# Omar already works 08:30-16:30 that day and the dropped shift is 14:00-22:45,
+# so the pickup gate refuses it as a double-booking.
 r = client.post(f"/swaps/{drop_id}/claim", headers=tokens["Omar"])
+check(r.status_code == 409, "double-booked claim refused")
+
+# Nina has no shifts that week, so she can take it.
+r = client.post(f"/swaps/{drop_id}/claim", headers=tokens["Nina"])
 check(r.status_code == 200 and r.json()["status"] == "pending_manager", "drop claimed")
 r = client.post(f"/swaps/{drop_id}/deny", headers=manager, json={"note": "need Lisa on close"})
 check(r.status_code == 200 and r.json()["status"] == "denied", "manager denies claim")

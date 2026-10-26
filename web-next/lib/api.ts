@@ -201,6 +201,15 @@ export const api = {
   acceptSwap: (id: number) => request<SwapRequest>('POST', `/swaps/${id}/accept`),
   declineSwap: (id: number) =>
     request<SwapRequest>('POST', `/swaps/${id}/decline`),
+  postOpenShift: (payload: {
+    shift_id?: number
+    schedule_id?: number
+    on_date?: string
+    code?: string
+    message?: string
+    required_skills?: string
+    min_skill_level?: number | null
+  }) => request<SwapRequest>('POST', '/swaps/open-shift', payload),
   cancelSwap: (id: number) => request<SwapRequest>('POST', `/swaps/${id}/cancel`),
   approveSwap: (id: number, note = '') =>
     request<SwapRequest>('POST', `/swaps/${id}/approve`, { note }),

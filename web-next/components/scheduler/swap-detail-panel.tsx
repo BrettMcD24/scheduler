@@ -1,6 +1,7 @@
 'use client'
 
 import useSWR from 'swr'
+import { AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { dayWithDate, hhmm } from '@/lib/hooks'
 import type { ShiftSummary } from '@/lib/types'
@@ -49,6 +50,25 @@ export function SwapDetailPanel({ swapId }: { swapId: number }) {
 
   return (
     <div className="mt-4 space-y-2 border-t border-border pt-4">
+      {/* What this approval would cause. Minor labor-law breaches are refused
+          outright at claim time, so anything here is a judgement call. */}
+      {data.warnings.length > 0 && (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+          {data.warnings.map((w) => (
+            <p key={w} className="flex items-start gap-1.5 text-xs text-amber-200">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+              {w}
+            </p>
+          ))}
+        </div>
+      )}
+      {data.board_message && (
+        <div className="rounded-lg border border-primary/30 bg-primary/8 px-3 py-2 text-xs text-primary">
+          Posted to the board: “{data.board_message}”
+          {data.required_skills && ` · needs ${data.required_skills}`}
+          {data.min_skill_level != null && ` · level ${data.min_skill_level}+`}
+        </div>
+      )}
       {data.drop_reason && (
         <div className="rounded-lg border border-primary/30 bg-primary/8 px-3 py-2 text-xs text-primary">
           Reason given: {data.drop_reason}

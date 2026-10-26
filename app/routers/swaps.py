@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -7,13 +7,36 @@ from ..audit import log_action
 from ..auth import check_store_access, get_current_user, require_manager
 from ..database import get_db
 from ..models import Role, Schedule, Shift, SwapRequest, SwapStatus, User
-from ..schemas import SwapCreateIn, SwapDecisionIn, SwapDetailOut, SwapOut
+from ..shift_rules import preview_assignment_issues, unmet_board_criteria
+from ..skills import SKILL_ORDER
+from ..shift_rules import parse_shift_code
+from ..schemas import (
+    OpenShiftPostIn,
+    SwapCreateIn,
+    SwapDecisionIn,
+    SwapDetailOut,
+    SwapOut,
+)
 
 router = APIRouter(prefix="/swaps", tags=["swaps"])
 
 
 def _now():
     return datetime.now(timezone.utc)
+
+
+def _block_if_illegal(db, schedule, employee_id, gaining, losing=None):
+    """Refuse a pickup that would breach minor labor law or double-book.
+
+    Those limits are statutory, so they are a hard stop rather than a warning.
+    Availability is intentionally not checked here — picking up outside your
+    posted availability is allowed.
+    """
+    blocking, _ = preview_assignment_issues(
+        db, schedule, employee_id, gaining, losing
+    )
+    if blocking:
+        raise HTTPException(409, blocking[0].message)
 
 
 @router.post("", response_model=SwapOut)
@@ -99,6 +122,18 @@ def claim_open_swap(
         raise HTTPException(403, "Not your store")
     if actor.id == swap.requesting_employee_id:
         raise HTTPException(422, "Cannot claim your own dropped shift")
+
+    # A manager-posted shift can carry criteria (certifications / level).
+    missing = unmet_board_criteria(actor, swap.required_skills, swap.min_skill_level)
+    if missing:
+        raise HTTPException(
+            409,
+            "This shift asks for " + ", ".join(missing)
+            + ". Ask your manager if you think that's wrong.",
+        )
+
+    _block_if_illegal(db, schedule, actor.id, shift, losing=None)
+
     swap.target_employee_id = actor.id
     swap.status = SwapStatus.pending_manager
     swap.coworker_accepted_at = _now()
@@ -120,6 +155,14 @@ def coworker_accept(
         raise HTTPException(404, "Pending swap not found")
     if swap.target_employee_id != actor.id:
         raise HTTPException(403, "This swap is not addressed to you")
+
+    shift = db.get(Shift, swap.shift_id)
+    schedule = db.get(Schedule, shift.schedule_id)
+    # In a two-sided trade the accepter gives up their own shift, so the net
+    # hours change is what matters.
+    losing = db.get(Shift, swap.target_shift_id) if swap.target_shift_id else None
+    _block_if_illegal(db, schedule, actor.id, shift, losing=losing)
+
     swap.status = SwapStatus.pending_manager
     swap.coworker_accepted_at = _now()
     db.commit()
@@ -162,9 +205,23 @@ def manager_approve(
     schedule = db.get(Schedule, shift.schedule_id)
     check_store_access(actor, schedule.store_id)
 
+    # Re-check at the decision point: the week may have changed since the
+    # employee claimed it, so a pickup that was legal then may not be now.
+    if swap.target_employee_id:
+        losing = db.get(Shift, swap.target_shift_id) if swap.target_shift_id else None
+        _block_if_illegal(db, schedule, swap.target_employee_id, shift, losing=losing)
+        # the requester takes the other side of a two-sided trade
+        if swap.target_shift_id and shift.employee_id:
+            other = db.get(Shift, swap.target_shift_id)
+            if other:
+                _block_if_illegal(
+                    db, schedule, shift.employee_id, other, losing=shift
+                )
+
     old_employee = shift.employee_id
     shift.employee_id = swap.target_employee_id
-    shift.was_swapped = True
+    # a shift that had nobody on it was filled, not swapped
+    shift.was_swapped = old_employee is not None
 
     # Two-sided trade: if there's a target shift, the requester takes it.
     if swap.target_shift_id is not None:
@@ -296,9 +353,23 @@ def swap_detail(
     target = db.get(User, swap.target_employee_id) if swap.target_employee_id else None
     target_shift = db.get(Shift, swap.target_shift_id) if swap.target_shift_id else None
 
+    # What a manager should know before approving: overtime, over-desired-max.
+    warnings: list[str] = []
+    if swap.target_employee_id and swap.status != SwapStatus.approved:
+        losing = db.get(Shift, swap.target_shift_id) if swap.target_shift_id else None
+        _, warn = preview_assignment_issues(
+            db, schedule, swap.target_employee_id, req_shift, losing
+        )
+        warnings = [w.message for w in warn]
+
     return {
         "id": swap.id,
         "status": swap.status.value,
+        "warnings": warnings,
+        "board_message": swap.board_message,
+        "required_skills": swap.required_skills,
+        "min_skill_level": swap.min_skill_level,
+        "posted_by_manager": swap.posted_by_manager,
         "requesting_employee_id": swap.requesting_employee_id,
         "requesting_employee_name": f"{requester.first_name} {requester.last_name}" if requester else "—",
         "target_employee_id": swap.target_employee_id,
@@ -310,3 +381,98 @@ def swap_detail(
         "created_at": swap.created_at,
         "decided_at": swap.decided_at,
     }
+
+
+@router.post("/open-shift", response_model=SwapOut)
+def post_open_shift(
+    body: OpenShiftPostIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_manager),
+):
+    """Put a shift on the board for anyone at the store to claim.
+
+    Use for a shift nobody is assigned to yet, or one being given up. The
+    manager can attach a message and criteria ("closer who can dress"), and
+    only employees meeting the criteria can claim it.
+    """
+    if body.shift_id is not None:
+        shift = db.get(Shift, body.shift_id)
+        if not shift:
+            raise HTTPException(404, "Shift not found")
+        schedule = db.get(Schedule, shift.schedule_id)
+        check_store_access(actor, schedule.store_id)
+    else:
+        if not (body.schedule_id and body.on_date and body.code):
+            raise HTTPException(
+                422, "Provide shift_id, or schedule_id + on_date + code"
+            )
+        schedule = db.get(Schedule, body.schedule_id)
+        if not schedule:
+            raise HTTPException(404, "Schedule not found")
+        check_store_access(actor, schedule.store_id)
+        week_end = date.fromordinal(schedule.week_start.toordinal() + 6)
+        if not (schedule.week_start <= body.on_date <= week_end):
+            raise HTTPException(422, "Date is outside the schedule week")
+        try:
+            start, end, is_close, note = parse_shift_code(body.code, schedule.store)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+        shift = Shift(
+            schedule_id=schedule.id,
+            employee_id=None,  # unfilled until somebody claims it
+            on_date=body.on_date,
+            start_time=start,
+            end_time=end,
+            is_close=is_close,
+            notes=note,
+        )
+        db.add(shift)
+        db.flush()
+
+    existing = (
+        db.query(SwapRequest)
+        .filter(
+            SwapRequest.shift_id == shift.id,
+            SwapRequest.status.in_(
+                [SwapStatus.open, SwapStatus.pending_coworker, SwapStatus.pending_manager]
+            ),
+        )
+        .first()
+    )
+    if existing:
+        raise HTTPException(409, "This shift is already on the board")
+
+    bad = [
+        k
+        for k in [x.strip() for x in (body.required_skills or "").split(",") if x.strip()]
+        if k not in SKILL_ORDER
+    ]
+    if bad:
+        raise HTTPException(422, f"Unknown skill(s): {', '.join(bad)}")
+    if body.min_skill_level is not None and not 1 <= body.min_skill_level <= 5:
+        raise HTTPException(422, "min_skill_level must be between 1 and 5")
+
+    swap = SwapRequest(
+        shift_id=shift.id,
+        # the manager is the one asking for coverage
+        requesting_employee_id=actor.id,
+        target_employee_id=None,
+        target_shift_id=None,
+        status=SwapStatus.open,
+        posted_by_manager=True,
+        board_message=body.message.strip(),
+        required_skills=",".join(
+            x.strip() for x in (body.required_skills or "").split(",") if x.strip()
+        ),
+        min_skill_level=body.min_skill_level,
+    )
+    db.add(swap)
+    db.commit()
+    db.refresh(swap)
+    log_action(
+        db, "swap", swap.id, "posted_to_board", actor.id,
+        shift_id=shift.id, criteria=swap.required_skills,
+        min_level=body.min_skill_level,
+    )
+    db.commit()
+    return swap

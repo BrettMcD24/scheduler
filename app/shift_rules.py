@@ -440,3 +440,135 @@ def validate_schedule(db: Session, schedule: Schedule) -> dict:
             str(emp_id): round(h, 2) for emp_id, h in weekly_hours.items()
         },
     }
+
+
+# ------------------------------------------------- prospective assignment
+
+def preview_assignment_issues(
+    db: Session,
+    schedule: Schedule,
+    employee_id: int,
+    gaining: Shift,
+    losing: Shift | None = None,
+) -> tuple[list[ValidationItem], list[ValidationItem]]:
+    """What would break if `employee_id` took `gaining` (and gave up `losing`)?
+
+    Returns (blocking, warnings).
+
+    Blocking = minor labor-law violations. Those are statutory, so a pickup
+    that would breach them is refused outright.
+
+    Warnings = things a manager may legitimately decide to allow, such as
+    going past 40 hours. These are surfaced at the approval step, not blocked.
+
+    Availability is deliberately NOT checked: picking up a shift outside your
+    posted availability is allowed by design — that is the whole point of the
+    board. See _assignment_block_reason() for the manager-assignment path,
+    where availability IS enforced.
+    """
+    emp = db.get(User, employee_id)
+    blocking: list[ValidationItem] = []
+    warnings: list[ValidationItem] = []
+    if emp is None:
+        return blocking, warnings
+
+    name = f"{emp.first_name} {emp.last_name[:1]}."
+    store = schedule.store
+    dates = _week_dates(schedule.week_start)
+
+    # the employee's week as it would be AFTER the trade
+    existing = (
+        db.query(Shift)
+        .filter(Shift.schedule_id == schedule.id, Shift.employee_id == employee_id)
+        .all()
+    )
+    after = [s for s in existing if losing is None or s.id != losing.id]
+    after.append(gaining)
+
+    weekly = round(sum(s.hours() for s in after), 2)
+    daily = round(
+        sum(s.hours() for s in after if s.on_date == gaining.on_date), 2
+    )
+
+    # --- minor labor law: statutory, so this blocks ---
+    age = emp.age_on(gaining.on_date)
+    if age is not None and age < 18:
+        school_breaks = [
+            (b.start_date, b.end_date)
+            for b in db.query(SchoolBreak)
+            .filter(SchoolBreak.store_id == store.id)
+            .all()
+        ]
+        for issue in check_minor_shift(
+            age,
+            store.state,
+            gaining.on_date,
+            gaining.start_time,
+            gaining.end_time,
+            daily,
+            weekly,
+            school_breaks,
+            week_has_school(dates, school_breaks),
+            len({s.on_date for s in after}),
+        ):
+            blocking.append(
+                ValidationItem(
+                    SEVERITY_VIOLATION,
+                    issue.code,
+                    f"{name}: {issue.message}",
+                    employee_id=emp.id,
+                    on_date=gaining.on_date.isoformat(),
+                )
+            )
+
+    # --- overtime: a business call, so the manager decides ---
+    if weekly > 40:
+        warnings.append(
+            ValidationItem(
+                SEVERITY_WARNING,
+                "OVERTIME",
+                f"{name}: this would put them at {weekly}h (past 40h)",
+                employee_id=emp.id,
+            )
+        )
+    if emp.desired_hours_max and weekly > emp.desired_hours_max:
+        warnings.append(
+            ValidationItem(
+                SEVERITY_WARNING,
+                "OVER_DESIRED_MAX",
+                f"{name}: {weekly}h exceeds their desired max of "
+                f"{emp.desired_hours_max}h",
+                employee_id=emp.id,
+            )
+        )
+
+    # --- double-booking on the day ---
+    for s in after:
+        if s.id == gaining.id or s.on_date != gaining.on_date:
+            continue
+        if s.start_time < gaining.end_time and gaining.start_time < s.end_time:
+            blocking.append(
+                ValidationItem(
+                    SEVERITY_VIOLATION,
+                    "DOUBLE_BOOKED",
+                    f"{name}: already working "
+                    f"{s.start_time.strftime('%H:%M')}-{s.end_time.strftime('%H:%M')} "
+                    f"that day",
+                    employee_id=emp.id,
+                    on_date=gaining.on_date.isoformat(),
+                )
+            )
+            break
+
+    return blocking, warnings
+
+
+def unmet_board_criteria(emp: User, required_skills: str, min_level: int | None) -> list[str]:
+    """Which of a posted shift's criteria this employee does not meet."""
+    missing: list[str] = []
+    for key in [k.strip() for k in (required_skills or "").split(",") if k.strip()]:
+        if key in SKILL_ORDER and not getattr(emp, f"skill_{key}", False):
+            missing.append(key)
+    if min_level is not None and (emp.skill_level or 0) < min_level:
+        missing.append(f"level {min_level}+")
+    return missing

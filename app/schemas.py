@@ -208,6 +208,19 @@ class SwapCreateIn(BaseModel):
     drop_reason: str = ""  # manager-visible reason
 
 
+class OpenShiftPostIn(BaseModel):
+    # Either point at an existing (ideally unfilled) shift...
+    shift_id: int | None = None
+    # ...or give a schedule + date + code and it is created unassigned.
+    schedule_id: int | None = None
+    on_date: date | None = None
+    code: str | None = None
+    message: str = ""
+    # comma-separated skill keys: dressing, cashing, frying, cooking
+    required_skills: str = ""
+    min_skill_level: int | None = None
+
+
 class SwapDecisionIn(BaseModel):
     note: str = ""
 
@@ -219,6 +232,10 @@ class SwapOut(ORMModel):
     target_employee_id: int | None
     target_shift_id: int | None
     status: str
+    posted_by_manager: bool = False
+    board_message: str = ""
+    required_skills: str = ""
+    min_skill_level: int | None = None
     manager_note: str
     created_at: datetime
     coworker_accepted_at: datetime | None
@@ -238,6 +255,11 @@ class SwapDetailOut(BaseModel):
     for the manager's 'View Request' panel."""
     id: int
     status: str
+    warnings: list[str] = []
+    board_message: str = ""
+    required_skills: str = ""
+    min_skill_level: int | None = None
+    posted_by_manager: bool = False
     requesting_employee_id: int
     requesting_employee_name: str
     target_employee_id: int | None

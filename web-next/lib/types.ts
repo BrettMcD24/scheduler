@@ -186,6 +186,12 @@ export type SwapRequest = {
   target_employee_id: number | null
   target_shift_id: number | null
   status: SwapStatus
+  /** manager put this shift on the board for anyone to claim */
+  posted_by_manager: boolean
+  board_message: string
+  /** comma-separated skill keys, e.g. "dressing,frying" */
+  required_skills: string
+  min_skill_level: number | null
   manager_note: string
   created_at: string
   coworker_accepted_at: string | null
@@ -207,6 +213,12 @@ export type SwapDetail = {
   requesting_employee_name: string
   target_employee_id: number | null
   target_employee_name: string | null
+  /** things the manager should weigh before approving (overtime etc.) */
+  warnings: string[]
+  board_message: string
+  required_skills: string
+  min_skill_level: number | null
+  posted_by_manager: boolean
   requesting_shift: ShiftSummary | null
   target_shift: ShiftSummary | null
   manager_note: string

@@ -302,3 +302,45 @@ collides with Tailwind's .grid utility. The <table> was being laid out as a CSS
 grid (display:grid on the table, display:block on tbody), so every column width
 was ignored and thead/tbody disagreed. Renamed to .sheet-grid. Don't give an
 element a bare Tailwind utility name.
+
+## 2026-10-26 — pickup gates + manager open-shift board
+
+Closes a real gap found by testing: swaps bypassed the validation engine
+entirely (app/routers/swaps.py made zero calls into it), so an employee could
+pick up a shift that broke minor labor law or pushed them past 40h, and the
+approving manager saw no warning. Validation was a reporting layer, not a gate.
+
+New `preview_assignment_issues()` in shift_rules.py answers "what breaks if
+this person takes this shift (and gives up that one)". Two tiers:
+
+- BLOCKING (409 at claim, accept, AND approve): minor labor-law breaches and
+  double-booking. Statutory limits aren't a manager's to waive, so these are a
+  hard stop. Re-checked at approval because the week can change between a
+  claim and the decision.
+- WARNING (surfaced, never blocks): over 40h, over the employee's desired max.
+  Overtime is a business call, so the manager decides — the warnings now
+  appear next to the Approve button via SwapDetailOut.warnings.
+
+Availability is deliberately still NOT checked on this path. Picking up a
+shift outside your posted availability remains allowed (requested 2026-06-14);
+only MANAGER direct-assignment enforces availability, in
+_assignment_block_reason(). Verified both halves still behave.
+
+### Manager open-shift board
+`POST /swaps/open-shift` puts a shift on the board with a message and criteria,
+e.g. "Looking for a closer who can dress" requiring skill_dressing and level 2+.
+- Takes an existing shift_id, OR schedule_id + on_date + code and creates the
+  shift unassigned (the builder has no "add unassigned shift" affordance, so
+  requiring a pre-existing shift would have made this unusable).
+- Criteria are the real skill_* certifications plus an optional minimum level.
+  A claim that doesn't meet them is refused with a readable reason.
+- Employees see the message and criteria on their board; the Claim button is
+  disabled with "You don't meet the criteria" rather than failing on click.
+- A newly filled shift sets was_swapped=False — it was filled, not traded.
+
+New SwapRequest fields: posted_by_manager, board_message, required_skills,
+min_skill_level. SCHEMA CHANGED — delete teds.db and re-seed.
+
+test_smoke.py updated: the old test had Omar claim a shift overlapping one he
+already worked, which now correctly 409s. It asserts the refusal and then has
+Nina (free that week) claim it.

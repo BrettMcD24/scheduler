@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useSWRConfig } from 'swr'
-import { Check, X } from 'lucide-react'
+import { Check, Megaphone, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { api, ApiError } from '@/lib/api'
 import {
@@ -136,23 +136,87 @@ export function EmployeeSwapsView() {
         {pool.length === 0 ? (
           <EmptyState message="Nothing in the pool right now." />
         ) : (
-          pool.map((s) => (
-            <Card key={s.id}>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar name={nameOf(s.requesting_employee_id)} size="sm" />
-                  <p className="text-sm">
-                    <strong>{nameOf(s.requesting_employee_id)}</strong> dropped{' '}
-                    {shiftLabel(s.shift_id)}
-                  </p>
+          pool.map((s) => {
+            const needs = (s.required_skills || '')
+              .split(',')
+              .map((k) => k.trim())
+              .filter(Boolean)
+            const meets =
+              needs.every((k) => Boolean(user?.[`skill_${k}` as keyof typeof user])) &&
+              (s.min_skill_level == null ||
+                (user?.skill_level ?? 0) >= s.min_skill_level)
+            return (
+              <Card
+                key={s.id}
+                className={s.posted_by_manager ? 'border-primary/35' : undefined}
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    {s.posted_by_manager ? (
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-primary/35 bg-primary/12 text-primary">
+                        <Megaphone className="size-4" />
+                      </span>
+                    ) : (
+                      <Avatar name={nameOf(s.requesting_employee_id)} size="sm" />
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-sm">
+                        {s.posted_by_manager ? (
+                          <>
+                            <strong>Open shift</strong> — {shiftLabel(s.shift_id)}
+                          </>
+                        ) : (
+                          <>
+                            <strong>{nameOf(s.requesting_employee_id)}</strong> dropped{' '}
+                            {shiftLabel(s.shift_id)}
+                          </>
+                        )}
+                      </p>
+                      {s.board_message && (
+                        <p className="mt-0.5 text-sm text-muted-foreground">
+                          “{s.board_message}”
+                        </p>
+                      )}
+                      {(needs.length > 0 || s.min_skill_level != null) && (
+                        <p className="mt-1.5 flex flex-wrap items-center gap-1 text-[0.7rem]">
+                          <span className="text-muted-foreground">Needs:</span>
+                          {needs.map((k) => (
+                            <span
+                              key={k}
+                              className="rounded-full border border-border px-2 py-0.5 capitalize"
+                            >
+                              {k}
+                            </span>
+                          ))}
+                          {s.min_skill_level != null && (
+                            <span className="rounded-full border border-border px-2 py-0.5">
+                              Level {s.min_skill_level}+
+                            </span>
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <Button
+                      size="sm"
+                      disabled={busy || !meets}
+                      onClick={() =>
+                        act(() => api.claimSwap(s.id), 'Claimed — pending manager approval.')
+                      }
+                    >
+                      Claim
+                    </Button>
+                    {!meets && (
+                      <span className="text-[0.7rem] text-muted-foreground">
+                        You don&apos;t meet the criteria
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <Button size="sm" disabled={busy}
-                  onClick={() => act(() => api.claimSwap(s.id), 'Claimed — pending manager approval.')}>
-                  Claim
-                </Button>
-              </div>
-            </Card>
-          ))
+              </Card>
+            )
+          })
         )}
       </section>
 

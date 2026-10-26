@@ -7,6 +7,7 @@ import { Avatar, Badge, Card, EmptyState, Loading, SectionHeader } from './primi
 import { useEmployees, useSwaps } from '@/lib/hooks'
 import type { SwapStatus } from '@/lib/types'
 import { SwapDetailPanel } from './swap-detail-panel'
+import { PostOpenShift } from './post-open-shift'
 
 function StatusBadge({ status }: { status: SwapStatus }) {
   if (status === 'approved')
@@ -16,7 +17,13 @@ function StatusBadge({ status }: { status: SwapStatus }) {
   return <Badge tone="gold"><Clock3 className="size-3" />Pending</Badge>
 }
 
-export function SwapsView({ storeId }: { storeId: number }) {
+export function SwapsView({
+  storeId,
+  weekStart,
+}: {
+  storeId: number
+  weekStart: string
+}) {
   const { data: swaps, isLoading } = useSwaps()
   const { data: employees } = useEmployees(storeId)
   const [expanded, setExpanded] = useState<number | null>(null)
@@ -28,6 +35,9 @@ export function SwapsView({ storeId }: { storeId: number }) {
 
   if (isLoading) return <Loading />
 
+  const openPosts = (swaps ?? []).filter(
+    (s) => s.status === 'open' && s.posted_by_manager,
+  )
   const history = (swaps ?? []).filter(
     (s) => s.status === 'approved' || s.status === 'denied' || s.status === 'cancelled',
   )
@@ -40,6 +50,36 @@ export function SwapsView({ storeId }: { storeId: number }) {
         title="Shift Swap History"
         description="A complete audit trail of every shift swap requested between team members."
       />
+
+      <PostOpenShift storeId={storeId} weekStart={weekStart} />
+
+      {openPosts.length > 0 && (
+        <div className="space-y-2">
+          {openPosts.map((s) => (
+            <Card key={s.id} className="border-primary/35">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm">
+                  <Badge tone="gold">On the board</Badge>{' '}
+                  {s.board_message || 'Open shift'}
+                  {s.required_skills && (
+                    <span className="text-muted-foreground">
+                      {' '}· needs {s.required_skills}
+                    </span>
+                  )}
+                  {s.min_skill_level != null && (
+                    <span className="text-muted-foreground">
+                      {' '}· level {s.min_skill_level}+
+                    </span>
+                  )}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  waiting to be claimed
+                </span>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {history.length === 0 ? (
         <EmptyState message="No decided swaps yet." />
